@@ -7,10 +7,12 @@ import { store } from "@/lib/store";
 import { Vote, LayoutDashboard, LogIn, UserCircle2, ArrowRight } from "lucide-react";
 
 export function Navbar() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
   const [currentUser, setCurrentUser] = useState(store.getCurrentUser());
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setCurrentUser(store.getCurrentUser());
   }, [pathname]);
 
@@ -23,6 +25,9 @@ export function Navbar() {
     store.setCurrentUser({ role: nextRole, email: nextEmail, full_name: nextName });
     setCurrentUser(store.getCurrentUser());
   };
+
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isVoteRoute = pathname.startsWith("/vote");
 
   return (
     <header className="sticky top-0 z-40 border-b border-navy/10 bg-white/95 backdrop-blur-md">
@@ -39,7 +44,7 @@ export function Navbar() {
             <Link
               href="/admin"
               className={`transition-colors hover:text-navy ${
-                pathname.startsWith("/admin") ? "text-navy font-bold" : ""
+                isAdminRoute ? "text-navy font-bold" : ""
               }`}
             >
               Admin Portal
@@ -47,7 +52,7 @@ export function Navbar() {
             <Link
               href="/vote"
               className={`transition-colors hover:text-navy ${
-                pathname.startsWith("/vote") ? "text-navy font-bold" : ""
+                isVoteRoute ? "text-navy font-bold" : ""
               }`}
             >
               Voter Portal
@@ -63,11 +68,13 @@ export function Navbar() {
             className="hidden sm:flex items-center gap-2 rounded-full border border-navy/15 bg-ice px-3 py-1.5 text-xs font-semibold text-navy hover:bg-navy/10 transition-colors"
           >
             <UserCircle2 size={15} className="text-teal-600" />
-            <span>Role: <strong className="text-teal-600">{isAdmin ? "Admin" : "Voter"}</strong></span>
+            <span>
+              Role: <strong className="text-teal-600">{mounted && !isAdmin ? "Voter" : "Admin"}</strong>
+            </span>
             <span className="text-[10px] uppercase tracking-wider text-ink/50 bg-white px-1.5 py-0.5 rounded-full border border-navy/10">switch</span>
           </button>
 
-          {pathname.startsWith("/admin") ? (
+          {isAdminRoute ? (
             <Link
               href="/vote"
               className="flex items-center gap-1.5 rounded-full bg-teal-100 px-4 py-2 text-xs font-bold text-teal-600 hover:bg-teal-100/80 transition-colors"
@@ -75,7 +82,7 @@ export function Navbar() {
               <Vote size={15} />
               <span>Go to Voter Portal</span>
             </Link>
-          ) : pathname.startsWith("/vote") ? (
+          ) : isVoteRoute ? (
             <Link
               href="/admin"
               className="flex items-center gap-1.5 rounded-full bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-800 transition-colors"
