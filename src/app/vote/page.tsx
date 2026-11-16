@@ -1,0 +1,201 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { store } from "@/lib/store";
+import { Election, EligibleVoter } from "@/lib/types";
+import { StatusBadge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Vote,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
+  BarChart3,
+  FileCheck2,
+} from "lucide-react";
+
+export default function VoterDashboardPage() {
+  const [elections, setElections] = useState<Election[]>([]);
+  const [voterStatusMap, setVoterStatusMap] = useState<Record<string, boolean>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const currentUser = store.getCurrentUser();
+
+  useEffect(() => {
+    async function loadData() {
+      const all = await store.getElections();
+      setElections(all);
+
+      // Check participation status for current user email across elections
+      const statusMap: Record<string, boolean> = {};
+      for (const el of all) {
+        const voters = await store.getVoters(el.id);
+        const match = voters.find((v) => v.email.toLowerCase() === currentUser.email.toLowerCase());
+        statusMap[el.id] = Boolean(match && match.voted);
+      }
+      setVoterStatusMap(statusMap);
+      setIsLoading(false);
+    }
+    loadData();
+  }, [currentUser.email]);
+
+  const activeElections = elections.filter((e) => e.status === "active");
+  const pastElections = elections.filter((e) => e.status === "completed");
+  const scheduledElections = elections.filter((e) => e.status === "scheduled");
+
+  return (
+    <div className="space-y-8">
+      {/* Voter Welcome Banner */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-navy/10 shadow-2xs">
+        <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy">
+          Your Voting Portal
+        </h1>
+        <p className="mt-2 text-sm text-ink/75 max-w-xl leading-relaxed">
+          Welcome, <strong>{currentUser.full_name || currentUser.email}</strong>. View the elections you are
+          eligible to participate in, cast your confidential ballot, and check published results.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="bg-white rounded-3xl p-12 text-center border border-navy/10">
+          <p className="text-sm font-semibold text-navy">Loading your eligible elections...</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Active Elections */}
+          <div>
+            <h2 className="font-display text-lg font-bold text-navy mb-4 flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-teal animate-pulse" />
+              Active Elections (Open Now)
+            </h2>
+
+            {activeElections.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 text-center border border-navy/10 text-xs text-ink/60">
+                No active elections open for voting at this moment.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activeElections.map((election) => {
+                  const hasVoted = voterStatusMap[election.id];
+                  const endDate = new Date(election.ends_at).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+
+                  return (
+                    <div
+                      key={election.id}
+                      className="bg-white rounded-3xl p-6 sm:p-7 border border-navy/10 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-6"
+                    >
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status="active" />
+                          {hasVoted ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-600">
+                              <CheckCircle2 size={12} /> Ballot Submitted
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber/20 px-2.5 py-0.5 text-xs font-semibold text-navy">
+                              Ready to Vote
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="font-display text-xl font-bold text-navy">{election.title}</h3>
+                        {election.description && (
+                          <p className="text-xs text-ink/70 max-w-xl">{election.description}</p>
+                        )}
+
+                        <p className="text-xs text-ink/60 flex items-center gap-1 pt-1">
+                          <Clock size={13} className="text-navy/50" />
+                          <span>Voting window closes on <strong>{endDate}</strong></span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {hasVoted ? (
+                          <div className="flex items-center gap-2">
+                            <Link href={`/vote/${election.id}/receipt`}>
+                              <Button variant="outline" size="sm">
+                                <FileCheck2 size={15} /> View Ballot Receipt
+                              </Button>
+                            </Link>
+                          </div>
+                        ) : (
+                          <Link href={`/vote/${election.id}`}>
+                            <Button size="md" className="w-full sm:w-auto">
+                              Cast Your Ballot <ArrowRight size={16} />
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Scheduled & Past Elections */}
+          {(scheduledElections.length > 0 || pastElections.length > 0) && (
+            <div className="pt-6 border-t border-navy/10 space-y-4">
+              <h2 className="font-display text-lg font-bold text-navy">Other Elections</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {scheduledElections.map((el) => (
+                  <div
+                    key={el.id}
+                    className="bg-white rounded-2xl p-5 border border-navy/10 flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <StatusBadge status="scheduled" />
+                      <h4 className="font-bold text-navy text-base mt-2">{el.title}</h4>
+                      <p className="text-xs text-ink/65 mt-1">
+                        Opens on {new Date(el.starts_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-ink/40">Voting opens soon</span>
+                  </div>
+                ))}
+
+                {pastElections.map((el) => (
+                  <div
+                    key={el.id}
+                    className="bg-white rounded-2xl p-5 border border-navy/10 flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <StatusBadge status="completed" />
+                      <h4 className="font-bold text-navy text-base mt-2">{el.title}</h4>
+                      <p className="text-xs text-ink/65 mt-1">
+                        Closed on {new Date(el.ends_at).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-navy/5 flex items-center justify-between">
+                      <span className="text-xs text-ink/50">
+                        {voterStatusMap[el.id] ? "You participated" : "Voting ended"}
+                      </span>
+                      {el.results_published ? (
+                        <Link href={`/results/${el.id}`}>
+                          <Button size="sm" variant="secondary">
+                            <BarChart3 size={13} /> View Results
+                          </Button>
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-ink/40">Results pending admin</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

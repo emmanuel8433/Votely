@@ -3,3 +3,4 @@ d-res
 .next
 .env
 .env.local
+*.tsbuildinfo
