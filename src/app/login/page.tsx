@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/notification";
 import { store } from "@/lib/store";
 import { isSupabaseConfigured, supabaseClient } from "@/lib/supabase/client";
-import { ShieldCheck, ArrowRight, UserCheck, KeyRound } from "lucide-react";
+import { ShieldCheck, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,6 +25,10 @@ export default function LoginPage() {
       setError("Please provide a valid email address.");
       return;
     }
+    if (!password || password.length < 6) {
+      setError("Please enter your password (minimum 6 characters).");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -33,85 +37,54 @@ export default function LoginPage() {
       if (isSupabaseConfigured()) {
         const client = supabaseClient();
         if (client) {
-          const { error: authError } = await client.auth.signInWithPassword({
+          const { data, error: authError } = await client.auth.signInWithPassword({
             email,
-            password: password || "temp-password-123",
+            password,
           });
-          if (authError) {
-            // If live supabase fails, inform user or fallback to demo
-            console.warn("Supabase auth error:", authError.message);
-          }
+          if (authError) throw new Error(authError.message);
+
+          // Sync authenticated user into store
+          store.setCurrentUser({
+            id: data.user.id,
+            email: data.user.email ?? email,
+            full_name: data.user.user_metadata?.full_name ?? email.split("@")[0],
+            role,
+          });
+
+          router.push(role === "org_admin" ? "/admin" : "/vote");
+          return;
         }
       }
 
-      // Store demo profile session
+      // Local session if operating without live Supabase
       store.setCurrentUser({
         email,
         full_name: email.split("@")[0].replace(".", " "),
         role,
       });
-
-      if (role === "org_admin") {
-        router.push("/admin");
-      } else {
-        router.push("/vote");
-      }
+      router.push(role === "org_admin" ? "/admin" : "/vote");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Authentication failed");
       setIsLoading(false);
     }
   };
 
-  const handleQuickDemo = (demoRole: "org_admin" | "voter") => {
-    const demoEmail = demoRole === "org_admin" ? "admin@apex.edu" : "voter@apex.edu";
-    const demoName = demoRole === "org_admin" ? "Alex Vance (Admin)" : "Jordan Lee (Voter)";
-    store.setCurrentUser({
-      role: demoRole,
-      email: demoEmail,
-      full_name: demoName,
-    });
-    router.push(demoRole === "org_admin" ? "/admin" : "/vote");
-  };
-
   return (
     <div className="min-h-screen bg-ice flex flex-col">
       <Navbar />
       <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-md bg-white rounded-3xl p-7 sm:p-9 shadow-xl border border-navy/10">
+        <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-9 shadow-xl border border-navy/10">
           <div className="text-center mb-6">
-            <span className="font-display text-3xl font-semibold text-navy">
+            <span className="font-display text-3xl font-bold text-navy">
               Votely<span className="text-teal">.</span>
             </span>
             <h1 className="mt-3 text-xl font-bold text-navy">Sign in to your account</h1>
-            <p className="mt-1 text-sm text-ink/70">
+            <p className="mt-1 text-xs sm:text-sm text-ink/70">
               Access your organisation dashboard or cast your ballot
             </p>
           </div>
 
           {error && <Alert type="error" message={error} className="mb-5" />}
-
-          {/* Quick preset selector for testing without credentials */}
-          <div className="mb-6 rounded-2xl bg-ice p-3 border border-navy/10">
-            <p className="text-xs font-semibold text-navy mb-2 flex items-center gap-1.5">
-              <KeyRound size={14} className="text-teal-600" /> Instant Demo Sign-in:
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickDemo("org_admin")}
-                className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-navy border border-navy/15 hover:border-teal hover:text-teal-600 transition-colors shadow-2xs"
-              >
-                Sign in as Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemo("voter")}
-                className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-navy border border-navy/15 hover:border-teal hover:text-teal-600 transition-colors shadow-2xs"
-              >
-                Sign in as Voter
-              </button>
-            </div>
-          </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="flex rounded-xl bg-ice p-1 border border-navy/10">
@@ -138,21 +111,22 @@ export default function LoginPage() {
             <Input
               label="Email address"
               type="email"
-              placeholder={role === "org_admin" ? "admin@organisation.org" : "voter@apex.edu"}
+              placeholder={role === "org_admin" ? "admin@yourorg.com" : "voter@yourorg.com"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
 
             <Input
-              label="Password or Access Passcode"
+              label="Password"
               type="password"
               placeholder="••••••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
 
-            <Button type="submit" isLoading={isLoading} className="w-full">
+            <Button type="submit" isLoading={isLoading} className="w-full mt-2">
               Sign In <ArrowRight size={16} />
             </Button>
           </form>

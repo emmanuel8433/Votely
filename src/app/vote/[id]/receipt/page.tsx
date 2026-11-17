@@ -40,28 +40,28 @@ function ReceiptContent() {
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
-      <div className="bg-white rounded-3xl p-8 sm:p-10 border border-navy/10 shadow-xl text-center space-y-6">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-teal text-white shadow-sm">
-          <CheckCircle2 size={36} strokeWidth={2.5} />
+      <div className="bg-white rounded-3xl p-6 sm:p-10 border border-navy/10 shadow-xl text-center space-y-6">
+        <div className="mx-auto flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-3xl bg-teal text-white shadow-sm">
+          <CheckCircle2 size={34} strokeWidth={2.5} />
         </div>
 
-        <div className="space-y-1">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy">
+        <div className="space-y-1 min-w-0">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy break-words">
             Ballot Successfully Cast
           </h1>
-          <p className="text-sm text-ink/75">
+          <p className="text-xs sm:text-sm text-ink/75 break-words">
             Your vote has been cryptographically recorded for{" "}
             <strong>{election?.title || "this election"}</strong>.
           </p>
         </div>
 
         {/* Verification Card */}
-        <div className="rounded-2xl border border-navy/10 bg-ice p-6 text-left space-y-4">
-          <div className="flex items-center justify-between border-b border-navy/10 pb-3">
+        <div className="rounded-2xl border border-navy/10 bg-ice p-5 sm:p-6 text-left space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-navy/10 pb-3 gap-2">
             <span className="text-xs font-bold text-navy uppercase tracking-wider">
               Official Ballot Receipt
             </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full self-start sm:self-auto">
               <ShieldCheck size={12} /> Sealed & Anonymized
             </span>
           </div>
@@ -69,19 +69,19 @@ function ReceiptContent() {
           <div className="space-y-3 text-xs">
             <div>
               <p className="text-ink/50 text-[10px] uppercase font-semibold">Verification Code</p>
-              <p className="font-mono text-sm font-bold text-navy mt-0.5 tracking-wider select-all">
+              <p className="font-mono text-sm sm:text-base font-bold text-navy mt-0.5 tracking-wider select-all break-all">
                 {receiptCode}
               </p>
             </div>
 
             <div>
               <p className="text-ink/50 text-[10px] uppercase font-semibold">Timestamp</p>
-              <p className="font-medium text-navy mt-0.5">{timestamp}</p>
+              <p className="font-medium text-navy mt-0.5 break-words">{timestamp}</p>
             </div>
 
             <div>
               <p className="text-ink/50 text-[10px] uppercase font-semibold">Voter Status</p>
-              <p className="font-medium text-navy mt-0.5">
+              <p className="font-medium text-navy mt-0.5 break-words">
                 Eligibility marked as participated • Zero duplicate ballots permitted
               </p>
             </div>
@@ -90,7 +90,7 @@ function ReceiptContent() {
 
         <div className="rounded-xl bg-teal-100/40 p-3.5 text-left text-xs text-ink/75 leading-relaxed flex items-start gap-2.5">
           <ShieldCheck size={16} className="text-teal-600 shrink-0 mt-0.5" />
-          <span>
+          <span className="break-words">
             <strong>Ballot Secrecy Guarantee:</strong> This receipt confirms your participation, but
             does not reveal your candidate selections. Your choices are stored independently without
             any voter identifier.
@@ -98,19 +98,19 @@ function ReceiptContent() {
         </div>
 
         <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-          <Button variant="outline" size="md" onClick={() => window.print()}>
+          <Button variant="outline" size="md" onClick={() => window.print()} className="w-full sm:w-auto">
             <Printer size={15} /> Print Receipt
           </Button>
 
           {election?.results_published ? (
-            <Link href={`/results/${election.id}`}>
-              <Button size="md">
+            <Link href={`/results/${election.id}`} className="w-full sm:w-auto">
+              <Button size="md" className="w-full">
                 <BarChart3 size={15} /> View Published Results
               </Button>
             </Link>
           ) : (
-            <Link href="/vote">
-              <Button size="md">
+            <Link href="/vote" className="w-full sm:w-auto">
+              <Button size="md" className="w-full">
                 Back to Elections <ArrowRight size={15} />
               </Button>
             </Link>

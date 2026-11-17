@@ -27,39 +27,55 @@ export default function VoterDashboardPage() {
       const all = await store.getElections();
       setElections(all);
 
-      // Check participation status for current user email across elections
       const statusMap: Record<string, boolean> = {};
-      for (const el of all) {
-        const voters = await store.getVoters(el.id);
-        const match = voters.find((v) => v.email.toLowerCase() === currentUser.email.toLowerCase());
-        statusMap[el.id] = Boolean(match && match.voted);
+      if (currentUser?.email) {
+        for (const el of all) {
+          const voters = await store.getVoters(el.id);
+          const match = voters.find(
+            (v) => v.email.toLowerCase() === currentUser.email.toLowerCase()
+          );
+          statusMap[el.id] = Boolean(match && match.voted);
+        }
       }
       setVoterStatusMap(statusMap);
       setIsLoading(false);
     }
     loadData();
-  }, [currentUser.email]);
+  }, [currentUser?.email]);
 
   const activeElections = elections.filter((e) => e.status === "active");
   const pastElections = elections.filter((e) => e.status === "completed");
   const scheduledElections = elections.filter((e) => e.status === "scheduled");
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Voter Welcome Banner */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-navy/10 shadow-2xs">
-        <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy">
+      <div className="bg-white rounded-3xl p-5 sm:p-8 border border-navy/10 shadow-2xs">
+        <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy break-words">
           Your Voting Portal
         </h1>
-        <p className="mt-2 text-sm text-ink/75 max-w-xl leading-relaxed">
-          Welcome, <strong>{currentUser.full_name || currentUser.email}</strong>. View the elections you are
-          eligible to participate in, cast your confidential ballot, and check published results.
+        <p className="mt-2 text-xs sm:text-sm text-ink/75 max-w-xl leading-relaxed break-words">
+          {currentUser.full_name ? (
+            <>Welcome, <strong>{currentUser.full_name}</strong>. </>
+          ) : null}
+          View elections you are eligible to participate in, cast your confidential ballot, and verify published results.
         </p>
       </div>
 
       {isLoading ? (
         <div className="bg-white rounded-3xl p-12 text-center border border-navy/10">
-          <p className="text-sm font-semibold text-navy">Loading your eligible elections...</p>
+          <p className="text-sm font-semibold text-navy">Loading elections...</p>
+        </div>
+      ) : elections.length === 0 ? (
+        <div className="bg-white rounded-3xl p-10 sm:p-12 text-center border border-navy/10 shadow-2xs space-y-4">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-ice text-navy">
+            <Vote size={28} />
+          </div>
+          <h2 className="font-display text-xl font-bold text-navy">No Elections Open Yet</h2>
+          <p className="text-xs sm:text-sm text-ink/70 max-w-md mx-auto leading-relaxed">
+            There are currently no active or scheduled elections for this organisation.
+            Once an election is created and published by an administrator, it will appear here for eligible voters.
+          </p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -89,10 +105,10 @@ export default function VoterDashboardPage() {
                   return (
                     <div
                       key={election.id}
-                      className="bg-white rounded-3xl p-6 sm:p-7 border border-navy/10 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-6"
+                      className="bg-white rounded-3xl p-5 sm:p-7 border border-navy/10 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6"
                     >
-                      <div className="space-y-2 flex-1">
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <StatusBadge status="active" />
                           {hasVoted ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-600">
@@ -105,29 +121,31 @@ export default function VoterDashboardPage() {
                           )}
                         </div>
 
-                        <h3 className="font-display text-xl font-bold text-navy">{election.title}</h3>
+                        <h3 className="font-display text-lg sm:text-xl font-bold text-navy break-words">
+                          {election.title}
+                        </h3>
                         {election.description && (
-                          <p className="text-xs text-ink/70 max-w-xl">{election.description}</p>
+                          <p className="text-xs text-ink/70 max-w-xl break-words">{election.description}</p>
                         )}
 
-                        <p className="text-xs text-ink/60 flex items-center gap-1 pt-1">
-                          <Clock size={13} className="text-navy/50" />
+                        <p className="text-xs text-ink/60 flex items-center gap-1 pt-1 flex-wrap">
+                          <Clock size={13} className="text-navy/50 shrink-0" />
                           <span>Voting window closes on <strong>{endDate}</strong></span>
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
                         {hasVoted ? (
-                          <div className="flex items-center gap-2">
-                            <Link href={`/vote/${election.id}/receipt`}>
-                              <Button variant="outline" size="sm">
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <Link href={`/vote/${election.id}/receipt`} className="w-full sm:w-auto">
+                              <Button variant="outline" size="sm" className="w-full">
                                 <FileCheck2 size={15} /> View Ballot Receipt
                               </Button>
                             </Link>
                           </div>
                         ) : (
-                          <Link href={`/vote/${election.id}`}>
-                            <Button size="md" className="w-full sm:w-auto">
+                          <Link href={`/vote/${election.id}`} className="w-full sm:w-auto">
+                            <Button size="md" className="w-full">
                               Cast Your Ballot <ArrowRight size={16} />
                             </Button>
                           </Link>
@@ -151,9 +169,9 @@ export default function VoterDashboardPage() {
                     key={el.id}
                     className="bg-white rounded-2xl p-5 border border-navy/10 flex flex-col justify-between space-y-3"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <StatusBadge status="scheduled" />
-                      <h4 className="font-bold text-navy text-base mt-2">{el.title}</h4>
+                      <h4 className="font-bold text-navy text-base mt-2 break-words">{el.title}</h4>
                       <p className="text-xs text-ink/65 mt-1">
                         Opens on {new Date(el.starts_at).toLocaleDateString()}
                       </p>
@@ -167,26 +185,26 @@ export default function VoterDashboardPage() {
                     key={el.id}
                     className="bg-white rounded-2xl p-5 border border-navy/10 flex flex-col justify-between space-y-3"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <StatusBadge status="completed" />
-                      <h4 className="font-bold text-navy text-base mt-2">{el.title}</h4>
+                      <h4 className="font-bold text-navy text-base mt-2 break-words">{el.title}</h4>
                       <p className="text-xs text-ink/65 mt-1">
                         Closed on {new Date(el.ends_at).toLocaleDateString()}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-navy/5 flex items-center justify-between">
-                      <span className="text-xs text-ink/50">
+                    <div className="pt-2 border-t border-navy/5 flex items-center justify-between gap-2">
+                      <span className="text-xs text-ink/50 truncate">
                         {voterStatusMap[el.id] ? "You participated" : "Voting ended"}
                       </span>
                       {el.results_published ? (
-                        <Link href={`/results/${el.id}`}>
+                        <Link href={`/results/${el.id}`} className="shrink-0">
                           <Button size="sm" variant="secondary">
                             <BarChart3 size={13} /> View Results
                           </Button>
                         </Link>
                       ) : (
-                        <span className="text-xs text-ink/40">Results pending admin</span>
+                        <span className="text-xs text-ink/40 shrink-0">Results pending admin</span>
                       )}
                     </div>
                   </div>

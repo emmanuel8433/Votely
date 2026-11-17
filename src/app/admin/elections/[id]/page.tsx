@@ -180,7 +180,7 @@ export default function ElectionDetailPage() {
 
   if (!election) {
     return (
-      <div className="bg-white rounded-3xl p-12 text-center border border-navy/10">
+      <div className="bg-white rounded-3xl p-10 sm:p-12 text-center border border-navy/10">
         <AlertCircle size={32} className="mx-auto text-red-500 mb-3" />
         <h2 className="text-lg font-bold text-navy">Election not found</h2>
         <div className="mt-4">
@@ -220,18 +220,18 @@ export default function ElectionDetailPage() {
   return (
     <div className="space-y-6">
       {/* Top Breadcrumb & Actions Header */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-ink/60">
           <Link href="/admin" className="hover:text-navy transition-colors">
             Elections
           </Link>
           <span>/</span>
-          <span className="text-navy">{election.title}</span>
+          <span className="text-navy truncate max-w-[200px] sm:max-w-none">{election.title}</span>
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2.5">
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={election.status} />
               {election.results_published && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-600">
@@ -239,11 +239,11 @@ export default function ElectionDetailPage() {
                 </span>
               )}
             </div>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy break-words">
               {election.title}
             </h1>
-            <p className="text-xs text-ink/65 flex items-center gap-1.5">
-              <Calendar size={13} className="text-navy/60" />
+            <p className="text-xs text-ink/65 flex items-center gap-1.5 flex-wrap">
+              <Calendar size={13} className="text-navy/60 shrink-0" />
               <span>{startDate} – {endDate}</span>
             </p>
           </div>
@@ -269,7 +269,7 @@ export default function ElectionDetailPage() {
             >
               <option value="draft">Status: Draft</option>
               <option value="scheduled">Status: Scheduled</option>
-              <option value="active">Status: Active (Voting Open)</option>
+              <option value="active">Status: Active (Open)</option>
               <option value="completed">Status: Completed</option>
               <option value="cancelled">Status: Cancelled</option>
             </select>
@@ -296,29 +296,29 @@ export default function ElectionDetailPage() {
       {/* Turnout & Key Statistics Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-navy/10 shadow-2xs">
         <div>
-          <span className="text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Positions</span>
-          <p className="text-2xl font-bold text-navy mt-0.5">{positions.length}</p>
+          <span className="text-[10px] sm:text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Positions</span>
+          <p className="text-xl sm:text-2xl font-bold text-navy mt-0.5">{positions.length}</p>
         </div>
         <div>
-          <span className="text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Candidates</span>
-          <p className="text-2xl font-bold text-navy mt-0.5">
+          <span className="text-[10px] sm:text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Candidates</span>
+          <p className="text-xl sm:text-2xl font-bold text-navy mt-0.5">
             {positions.reduce((acc, p) => acc + p.candidates.length, 0)}
           </p>
         </div>
         <div>
-          <span className="text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Eligible Voters</span>
-          <p className="text-2xl font-bold text-navy mt-0.5">{eligibleCount}</p>
+          <span className="text-[10px] sm:text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Eligible Voters</span>
+          <p className="text-xl sm:text-2xl font-bold text-navy mt-0.5">{eligibleCount}</p>
         </div>
         <div>
-          <span className="text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Turnout</span>
-          <p className="text-2xl font-bold text-teal-600 mt-0.5">
+          <span className="text-[10px] sm:text-[11px] font-semibold text-ink/60 uppercase tracking-wider">Turnout</span>
+          <p className="text-xl sm:text-2xl font-bold text-teal-600 mt-0.5">
             {turnoutPercent}% <span className="text-xs font-normal text-ink/50">({ballotsCount})</span>
           </p>
         </div>
       </div>
 
-      {/* Tabs Bar */}
-      <div className="flex border-b border-navy/10">
+      {/* Tabs Bar with mobile horizontal scrolling */}
+      <div className="flex border-b border-navy/10 overflow-x-auto whitespace-nowrap scrollbar-none">
         {[
           { id: "positions", label: `Positions & Candidates (${positions.length})` },
           { id: "voters", label: `Eligible Voters (${eligibleCount})` },
@@ -328,7 +328,7 @@ export default function ElectionDetailPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`px-4 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${
+            className={`px-3.5 sm:px-4 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors shrink-0 ${
               activeTab === tab.id
                 ? "border-navy text-navy font-bold"
                 : "border-transparent text-ink/60 hover:text-navy hover:border-navy/20"
@@ -342,20 +342,20 @@ export default function ElectionDetailPage() {
       {/* TAB 1: POSITIONS & CANDIDATES */}
       {activeTab === "positions" && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="font-display text-lg font-bold text-navy">Election Positions</h2>
               <p className="text-xs text-ink/70">
                 Define the roles open for voting and add candidates with their manifestos.
               </p>
             </div>
-            <Button size="sm" onClick={() => setIsNewPositionOpen(true)}>
+            <Button size="sm" onClick={() => setIsNewPositionOpen(true)} className="self-start sm:self-auto">
               <Plus size={15} /> Add Position
             </Button>
           </div>
 
           {positions.length === 0 ? (
-            <div className="bg-white rounded-3xl p-10 text-center border border-navy/10">
+            <div className="bg-white rounded-3xl p-8 sm:p-10 text-center border border-navy/10">
               <Vote size={28} className="mx-auto text-teal-600 mb-2" />
               <h3 className="font-semibold text-navy">No positions created yet</h3>
               <p className="text-xs text-ink/70 mt-1 max-w-sm mx-auto">
@@ -370,11 +370,11 @@ export default function ElectionDetailPage() {
               {positions.map((position) => (
                 <div
                   key={position.id}
-                  className="bg-white rounded-3xl p-6 border border-navy/10 shadow-2xs space-y-4"
+                  className="bg-white rounded-3xl p-5 sm:p-6 border border-navy/10 shadow-2xs space-y-4"
                 >
-                  <div className="flex items-center justify-between pb-3 border-b border-navy/10">
-                    <div>
-                      <h3 className="font-display text-lg font-bold text-navy">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-navy/10">
+                    <div className="min-w-0">
+                      <h3 className="font-display text-lg font-bold text-navy break-words">
                         {position.title}
                       </h3>
                       <p className="text-xs text-ink/60">
@@ -417,19 +417,19 @@ export default function ElectionDetailPage() {
                         >
                           <div>
                             <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2.5">
-                                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 text-teal-600 font-bold text-sm">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600 font-bold text-sm">
                                   {candidate.full_name.charAt(0)}
                                 </span>
-                                <div>
-                                  <h4 className="font-semibold text-navy text-sm">
+                                <div className="min-w-0">
+                                  <h4 className="font-semibold text-navy text-sm break-words">
                                     {candidate.full_name}
                                   </h4>
                                 </div>
                               </div>
                               <button
                                 onClick={() => handleDeleteCandidate(position.id, candidate.id)}
-                                className="opacity-0 group-hover:opacity-100 p-1 text-ink/40 hover:text-red-600 transition-opacity"
+                                className="sm:opacity-0 group-hover:opacity-100 p-1 text-ink/40 hover:text-red-600 transition-opacity shrink-0"
                                 title="Remove candidate"
                                 aria-label="Remove candidate"
                               >
@@ -438,7 +438,7 @@ export default function ElectionDetailPage() {
                             </div>
 
                             {candidate.bio && (
-                              <p className="mt-3 text-xs text-ink/75 leading-relaxed">
+                              <p className="mt-3 text-xs text-ink/75 leading-relaxed break-words">
                                 {candidate.bio}
                               </p>
                             )}
@@ -465,7 +465,7 @@ export default function ElectionDetailPage() {
               </p>
             </div>
 
-            <Button size="sm" variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+            <Button size="sm" variant="secondary" onClick={() => setIsImportModalOpen(true)} className="self-start sm:self-auto">
               <Upload size={14} /> Import CSV
             </Button>
           </div>
@@ -475,7 +475,7 @@ export default function ElectionDetailPage() {
             onSubmit={handleAddSingleVoter}
             className="bg-white rounded-2xl p-4 border border-navy/10 flex flex-col sm:flex-row items-end gap-3"
           >
-            <div className="flex-1 w-full sm:w-auto">
+            <div className="flex-1 w-full">
               <Input
                 label="Add Individual Voter Email"
                 type="email"
@@ -485,7 +485,7 @@ export default function ElectionDetailPage() {
                 required
               />
             </div>
-            <div className="flex-1 w-full sm:w-auto">
+            <div className="flex-1 w-full">
               <Input
                 label="Full Name (Optional)"
                 placeholder="e.g. Jordan Lee"
@@ -493,14 +493,14 @@ export default function ElectionDetailPage() {
                 onChange={(e) => setVoterName(e.target.value)}
               />
             </div>
-            <Button type="submit" size="md">
+            <Button type="submit" size="md" className="w-full sm:w-auto">
               <Plus size={15} /> Add to Roster
             </Button>
           </form>
 
           {/* Voter Search Bar */}
-          <div className="flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 border border-navy/10 text-xs">
-            <Search size={16} className="text-ink/40" />
+          <div className="flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 border border-navy/10 text-xs">
+            <Search size={16} className="text-ink/40 shrink-0" />
             <input
               type="text"
               placeholder="Search voters by name or email..."
@@ -511,7 +511,7 @@ export default function ElectionDetailPage() {
             {voterSearch && (
               <button
                 onClick={() => setVoterSearch("")}
-                className="text-xs font-bold text-ink/40 hover:text-navy"
+                className="text-xs font-bold text-ink/40 hover:text-navy shrink-0"
               >
                 Clear
               </button>
@@ -521,7 +521,7 @@ export default function ElectionDetailPage() {
           {/* Voters Table */}
           <div className="bg-white rounded-3xl border border-navy/10 overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-ink">
+              <table className="min-w-[520px] w-full text-left text-xs text-ink">
                 <thead className="bg-ice border-b border-navy/10 text-navy uppercase text-[10px] tracking-wider font-bold">
                   <tr>
                     <th className="px-5 py-3.5">Voter Email</th>
@@ -542,20 +542,20 @@ export default function ElectionDetailPage() {
                   ) : (
                     filteredVoters.map((voter) => (
                       <tr key={voter.id} className="hover:bg-ice/40 transition-colors">
-                        <td className="px-5 py-3.5 font-semibold text-navy">{voter.email}</td>
-                        <td className="px-5 py-3.5 text-ink/75">{voter.full_name || "—"}</td>
+                        <td className="px-5 py-3.5 font-semibold text-navy break-all">{voter.email}</td>
+                        <td className="px-5 py-3.5 text-ink/75 break-words">{voter.full_name || "—"}</td>
                         <td className="px-5 py-3.5">
                           {voter.voted ? (
-                            <span className="inline-flex items-center gap-1 text-teal-600 font-semibold bg-teal-100 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-teal-600 font-semibold bg-teal-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                               <CheckCircle2 size={12} /> Ballot Cast
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-ink/60 bg-ice px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-ink/60 bg-ice px-2 py-0.5 rounded-full whitespace-nowrap">
                               Eligible (Pending)
                             </span>
                           )}
                         </td>
-                        <td className="px-5 py-3.5 text-ink/50">
+                        <td className="px-5 py-3.5 text-ink/50 whitespace-nowrap">
                           {voter.voted_at
                             ? new Date(voter.voted_at).toLocaleTimeString([], {
                                 hour: "2-digit",
@@ -576,7 +576,7 @@ export default function ElectionDetailPage() {
       {/* TAB 3: BALLOT PREVIEW */}
       {activeTab === "preview" && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="font-display text-lg font-bold text-navy">Voter Ballot Preview</h2>
               <p className="text-xs text-ink/70">
@@ -590,7 +590,7 @@ export default function ElectionDetailPage() {
             </Link>
           </div>
 
-          <div className="max-w-3xl mx-auto space-y-6 bg-ice/40 p-6 rounded-3xl border border-navy/10">
+          <div className="max-w-3xl mx-auto space-y-6 bg-ice/40 p-4 sm:p-6 rounded-3xl border border-navy/10">
             <SecretBallotBanner />
 
             {positions.length === 0 ? (
@@ -599,9 +599,9 @@ export default function ElectionDetailPage() {
               </div>
             ) : (
               positions.map((pos) => (
-                <div key={pos.id} className="bg-white rounded-2xl p-6 border border-navy/10 space-y-4">
+                <div key={pos.id} className="bg-white rounded-2xl p-5 sm:p-6 border border-navy/10 space-y-4">
                   <div>
-                    <h3 className="font-display text-lg font-bold text-navy">{pos.title}</h3>
+                    <h3 className="font-display text-lg font-bold text-navy break-words">{pos.title}</h3>
                     <p className="text-xs text-ink/60">Select one candidate</p>
                   </div>
 
@@ -624,7 +624,7 @@ export default function ElectionDetailPage() {
 
       {/* TAB 4: SETTINGS & PUBLISHING */}
       {activeTab === "settings" && (
-        <div className="max-w-2xl bg-white rounded-3xl p-6 sm:p-8 border border-navy/10 shadow-2xs space-y-6">
+        <div className="max-w-2xl bg-white rounded-3xl p-5 sm:p-8 border border-navy/10 shadow-2xs space-y-6">
           <div>
             <h2 className="font-display text-lg font-bold text-navy">Election Lifecycle & Results</h2>
             <p className="text-xs text-ink/70">
@@ -633,10 +633,10 @@ export default function ElectionDetailPage() {
           </div>
 
           {/* Results Publishing Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-2xl border border-navy/10 bg-ice">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border border-navy/10 bg-ice">
+            <div className="min-w-0">
               <p className="text-sm font-bold text-navy">Publish Results to Public & Voters</p>
-              <p className="text-xs text-ink/70 mt-0.5">
+              <p className="text-xs text-ink/70 mt-0.5 break-words">
                 {election.results_published
                   ? "Results are currently live and visible at the public results link."
                   : "Results are currently restricted to organization administrators."}
@@ -646,6 +646,7 @@ export default function ElectionDetailPage() {
               size="sm"
               variant={election.results_published ? "outline" : "primary"}
               onClick={handleTogglePublishResults}
+              className="shrink-0"
             >
               {election.results_published ? "Unpublish Results" : "Publish Results"}
             </Button>

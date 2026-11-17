@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/notification";
 import { store } from "@/lib/store";
-import { Building2, ArrowRight, CheckCircle2 } from "lucide-react";
+import { isSupabaseConfigured, supabaseClient } from "@/lib/supabase/client";
+import { Building2, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -26,21 +27,57 @@ export default function RegisterPage() {
       setError("Please fill out all required fields.");
       return;
     }
+    if (!password || password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
 
     try {
-      // In a live Supabase environment, create auth user and organization membership
-      store.setCurrentUser({
-        full_name: adminName,
-        email,
-        role: "org_admin",
-      });
+      if (isSupabaseConfigured()) {
+        const client = supabaseClient();
+        if (client) {
+          // 1. Create the auth user in Supabase
+          const { data, error: signUpError } = await client.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: adminName } },
+          });
+          if (signUpError) throw new Error(signUpError.message);
+          if (!data.user) throw new Error("Sign up failed — no user returned.");
 
+          // 2. Create organization and membership via server route (uses service role)
+          let orgId = "";
+          try {
+            const res = await fetch("/api/organizations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ orgName, orgType, userId: data.user.id }),
+            });
+            if (res.ok) {
+              const body = await res.json();
+              if (body?.org?.id) orgId = body.org.id;
+            }
+          } catch {
+            // non-blocking
+          }
+
+          // 3. Update store
+          store.setCurrentUser({ id: data.user.id, full_name: adminName, email, role: "org_admin" });
+          store.setOrganization({ id: orgId, name: orgName, type: orgType, status: "active" });
+          router.push("/onboarding?org=" + encodeURIComponent(orgName));
+          return;
+        }
+      }
+
+      // Local session if no Supabase configured
+      store.setCurrentUser({ full_name: adminName, email, role: "org_admin" });
+      store.setOrganization({ name: orgName, type: orgType, status: "active" });
       router.push("/onboarding?org=" + encodeURIComponent(orgName));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to register organization");
+      setError(err instanceof Error ? err.message : "Failed to register organisation");
       setIsLoading(false);
     }
   };
@@ -49,13 +86,13 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-ice flex flex-col">
       <Navbar />
       <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-lg bg-white rounded-3xl p-7 sm:p-10 shadow-xl border border-navy/10">
+        <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-navy/10">
           <div className="mb-6">
-            <span className="font-display text-2xl font-semibold text-navy">
+            <span className="font-display text-2xl font-bold text-navy">
               Votely<span className="text-teal">.</span>
             </span>
             <h1 className="mt-2 text-2xl font-bold text-navy">Register your organisation</h1>
-            <p className="mt-1 text-sm text-ink/70">
+            <p className="mt-1 text-xs sm:text-sm text-ink/70">
               Set up your secure voting platform in less than two minutes.
             </p>
           </div>
@@ -65,7 +102,7 @@ export default function RegisterPage() {
           <form onSubmit={handleRegister} className="space-y-4">
             <Input
               label="Organisation Name"
-              placeholder="e.g. Apex University Student Union"
+              placeholder="e.g. National Bar Association"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
               required
@@ -92,7 +129,7 @@ export default function RegisterPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Admin Full Name"
-                placeholder="e.g. Alex Vance"
+                placeholder="e.g. Jane Doe"
                 value={adminName}
                 onChange={(e) => setAdminName(e.target.value)}
                 required
@@ -100,7 +137,7 @@ export default function RegisterPage() {
               <Input
                 label="Work Email"
                 type="email"
-                placeholder="admin@organisation.org"
+                placeholder="admin@yourorg.org"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

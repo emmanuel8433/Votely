@@ -74,7 +74,7 @@ export default function AdminElectionResultsPage() {
 
   if (!results || !election) {
     return (
-      <div className="bg-white rounded-3xl p-12 text-center border border-navy/10">
+      <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-navy/10">
         <AlertCircle size={32} className="mx-auto text-red-500 mb-3" />
         <h2 className="text-lg font-bold text-navy">Results unavailable</h2>
         <div className="mt-4">
@@ -90,12 +90,12 @@ export default function AdminElectionResultsPage() {
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Top Header */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-xs font-semibold text-ink/60">
+        <div className="flex items-center gap-2 text-xs font-semibold text-ink/60 flex-wrap">
           <Link href="/admin" className="hover:text-navy transition-colors">
             Elections
           </Link>
           <span>/</span>
-          <Link href={`/admin/elections/${election.id}`} className="hover:text-navy transition-colors">
+          <Link href={`/admin/elections/${election.id}`} className="hover:text-navy transition-colors truncate max-w-[150px] sm:max-w-none">
             {election.title}
           </Link>
           <span>/</span>
@@ -103,8 +103,8 @@ export default function AdminElectionResultsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <StatusBadge status={election.status} />
               {election.results_published ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-600">
@@ -116,7 +116,7 @@ export default function AdminElectionResultsPage() {
                 </span>
               )}
             </div>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy break-words">
               {results.election_title}
             </h1>
             <p className="text-xs text-ink/65 mt-0.5">
@@ -129,13 +129,14 @@ export default function AdminElectionResultsPage() {
               size="sm"
               variant={election.results_published ? "outline" : "primary"}
               onClick={handleTogglePublish}
+              className="w-full sm:w-auto"
             >
               {election.results_published ? "Unpublish Results" : "Publish to Voters"}
             </Button>
 
             {election.results_published && (
-              <Link href={`/results/${election.id}`} target="_blank">
-                <Button size="sm" variant="secondary">
+              <Link href={`/results/${election.id}`} target="_blank" className="w-full sm:w-auto">
+                <Button size="sm" variant="secondary" className="w-full">
                   <Share2 size={14} /> Public Link <ExternalLink size={12} />
                 </Button>
               </Link>
@@ -157,11 +158,11 @@ export default function AdminElectionResultsPage() {
       {error && <Alert type="error" message={error} onDismiss={() => setError(null)} />}
 
       {/* Turnout Statistics Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-3xl p-6 border border-navy/10 shadow-2xs">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-navy/10 shadow-2xs">
           <p className="text-xs font-bold text-ink/60 uppercase tracking-wider">Overall Turnout</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-display text-4xl font-bold text-teal-600">
+            <span className="font-display text-3xl sm:text-4xl font-bold text-teal-600">
               {results.turnout_percentage}%
             </span>
             <span className="text-xs text-ink/60">participation</span>
@@ -174,21 +175,21 @@ export default function AdminElectionResultsPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-navy/10 shadow-2xs">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-navy/10 shadow-2xs">
           <p className="text-xs font-bold text-ink/60 uppercase tracking-wider">Ballots Cast</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-display text-4xl font-bold text-navy">
+            <span className="font-display text-3xl sm:text-4xl font-bold text-navy">
               {results.total_ballots_cast}
             </span>
             <span className="text-xs text-ink/60">verified ballots</span>
           </div>
-          <p className="mt-3 text-xs text-ink/50">Stored anonymously via cryptographic hash</p>
+          <p className="mt-3 text-xs text-ink/50">Stored anonymously via cryptographic isolation</p>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-navy/10 shadow-2xs">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-navy/10 shadow-2xs">
           <p className="text-xs font-bold text-ink/60 uppercase tracking-wider">Eligible Voters</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-display text-4xl font-bold text-navy">
+            <span className="font-display text-3xl sm:text-4xl font-bold text-navy">
               {results.total_eligible_voters}
             </span>
             <span className="text-xs text-ink/60">enrolled on roster</span>
@@ -209,11 +210,11 @@ export default function AdminElectionResultsPage() {
           results.positions.map((pos) => (
             <div
               key={pos.position_id}
-              className="bg-white rounded-3xl p-6 sm:p-8 border border-navy/10 shadow-2xs space-y-6"
+              className="bg-white rounded-3xl p-5 sm:p-8 border border-navy/10 shadow-2xs space-y-6"
             >
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-navy/10">
-                <div>
-                  <h3 className="font-display text-xl font-bold text-navy">{pos.position_title}</h3>
+                <div className="min-w-0">
+                  <h3 className="font-display text-lg sm:text-xl font-bold text-navy break-words">{pos.position_title}</h3>
                   <p className="text-xs text-ink/60">
                     {pos.total_votes} {pos.total_votes === 1 ? "vote" : "votes"} recorded
                   </p>
@@ -232,8 +233,8 @@ export default function AdminElectionResultsPage() {
                         : "border-navy/10 bg-ice/40"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-start justify-between gap-3 sm:gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
                         <span
                           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-bold text-sm ${
                             cand.is_winner
@@ -243,31 +244,31 @@ export default function AdminElectionResultsPage() {
                         >
                           {cand.full_name.charAt(0)}
                         </span>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-navy text-base">{cand.full_name}</h4>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-navy text-sm sm:text-base break-words">{cand.full_name}</h4>
                             {cand.is_winner && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-teal text-white px-2 py-0.5 text-[11px] font-bold">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-teal text-white px-2 py-0.5 text-[10px] sm:text-[11px] font-bold shrink-0">
                                 <Trophy size={11} /> Winner
                               </span>
                             )}
                             {cand.is_tie && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber text-navy px-2 py-0.5 text-[11px] font-bold">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber text-navy px-2 py-0.5 text-[10px] sm:text-[11px] font-bold shrink-0">
                                 Tie
                               </span>
                             )}
                           </div>
                           {cand.bio && (
-                            <p className="text-xs text-ink/70 mt-1 line-clamp-1">{cand.bio}</p>
+                            <p className="text-xs text-ink/70 mt-1 line-clamp-1 break-words">{cand.bio}</p>
                           )}
                         </div>
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="font-display text-xl font-bold text-navy">
+                        <span className="font-display text-lg sm:text-xl font-bold text-navy">
                           {cand.percentage}%
                         </span>
-                        <p className="text-xs text-ink/60 font-medium">
+                        <p className="text-[11px] sm:text-xs text-ink/60 font-medium">
                           {cand.votes} {cand.votes === 1 ? "vote" : "votes"}
                         </p>
                       </div>
@@ -291,9 +292,9 @@ export default function AdminElectionResultsPage() {
       </div>
 
       {/* Secret Ballot Assurance Confirmation */}
-      <div className="rounded-2xl border border-navy/10 bg-ice p-5 flex items-start gap-3">
+      <div className="rounded-2xl border border-navy/10 bg-ice p-4 sm:p-5 flex items-start gap-3">
         <ShieldCheck size={20} className="text-teal-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-ink/75 leading-relaxed">
+        <div className="text-xs text-ink/75 leading-relaxed break-words">
           <strong>Anonymity Audit Confirmed:</strong> Turnout metrics track who participated to prevent
           double voting, but individual ballot selections are isolated in a detached table without voter
           identifiers. Administrators cannot view which candidate any specific voter selected.

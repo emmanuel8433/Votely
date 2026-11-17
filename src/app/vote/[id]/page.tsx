@@ -120,7 +120,7 @@ export default function BallotCastingPage() {
 
   if (error && !election) {
     return (
-      <div className="bg-white rounded-3xl p-12 text-center border border-navy/10">
+      <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-navy/10">
         <AlertCircle size={32} className="mx-auto text-red-500 mb-3" />
         <h2 className="text-lg font-bold text-navy">{error}</h2>
         <div className="mt-4">
@@ -134,24 +134,24 @@ export default function BallotCastingPage() {
 
   if (hasVoted) {
     return (
-      <div className="max-w-xl mx-auto bg-white rounded-3xl p-8 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
+      <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-600">
           <CheckCircle2 size={32} />
         </div>
         <h2 className="font-display text-2xl font-bold text-navy">Ballot Already Cast</h2>
-        <p className="text-sm text-ink/75 leading-relaxed">
+        <p className="text-sm text-ink/75 leading-relaxed break-words">
           Our records confirm that you have already cast your confidential ballot for{" "}
           <strong>{election?.title}</strong>. Under the one-person-one-vote protocol, additional
           submissions are not permitted.
         </p>
         <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
           <Link href={`/vote/${electionId}/receipt`}>
-            <Button variant="secondary" size="md">
+            <Button variant="secondary" size="md" className="w-full sm:w-auto">
               View Your Ballot Receipt
             </Button>
           </Link>
           <Link href="/vote">
-            <Button variant="outline" size="md">
+            <Button variant="outline" size="md" className="w-full sm:w-auto">
               Back to Elections
             </Button>
           </Link>
@@ -171,7 +171,7 @@ export default function BallotCastingPage() {
     : "";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8">
       {/* Back button & Title */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-ink/60">
@@ -181,12 +181,12 @@ export default function BallotCastingPage() {
           </Link>
         </div>
 
-        <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy break-words">
             {election?.title}
           </h1>
-          <p className="text-xs text-ink/65 mt-1 flex items-center gap-1.5">
-            <Clock size={13} className="text-navy/60" />
+          <p className="text-xs text-ink/65 mt-1 flex items-center gap-1.5 flex-wrap">
+            <Clock size={13} className="text-navy/60 shrink-0" />
             <span>Voting closes <strong>{endDate}</strong></span>
           </p>
         </div>
@@ -198,21 +198,21 @@ export default function BallotCastingPage() {
       <SecretBallotBanner />
 
       {/* Ballot Positions */}
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8">
         {positions.map((position, index) => {
           const selectedCandidateId = choices[position.id];
           return (
             <div
               key={position.id}
-              className="bg-white rounded-3xl p-6 sm:p-8 border border-navy/10 shadow-2xs space-y-5"
+              className="bg-white rounded-3xl p-5 sm:p-8 border border-navy/10 shadow-2xs space-y-5"
             >
-              <div className="flex items-start justify-between gap-4 pb-4 border-b border-navy/10">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-navy/10">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-navy text-white text-xs font-bold">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-navy text-white text-xs font-bold">
                       {index + 1}
                     </span>
-                    <h2 className="font-display text-xl font-bold text-navy">
+                    <h2 className="font-display text-lg sm:text-xl font-bold text-navy break-words">
                       {position.title}
                     </h2>
                   </div>
@@ -222,7 +222,7 @@ export default function BallotCastingPage() {
                 </div>
 
                 {selectedCandidateId && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-600 self-start sm:self-auto shrink-0">
                     <CheckCircle2 size={13} /> Choice Selected
                   </span>
                 )}
@@ -233,7 +233,7 @@ export default function BallotCastingPage() {
                   No candidates listed for this position.
                 </p>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   {position.candidates.map((cand) => (
                     <CandidateCard
                       key={cand.id}
@@ -251,11 +251,11 @@ export default function BallotCastingPage() {
 
       {/* Sticky Bottom Submission Bar */}
       <div className="sticky bottom-4 z-20 rounded-2xl bg-white p-4 sm:p-5 border border-navy/15 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
+        <div className="w-full sm:w-auto">
           <p className="text-xs font-bold text-navy">
             Ballot Completion: {selectedCount} of {positions.length} positions selected
           </p>
-          <div className="mt-1 h-1.5 w-44 rounded-full bg-ice overflow-hidden">
+          <div className="mt-1 h-1.5 w-full sm:w-44 rounded-full bg-ice overflow-hidden">
             <div
               className="h-full bg-teal rounded-full transition-all duration-300"
               style={{
@@ -287,9 +287,9 @@ export default function BallotCastingPage() {
             {positions.map((pos) => {
               const cand = pos.candidates.find((c) => c.id === choices[pos.id]);
               return (
-                <div key={pos.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between text-xs">
-                  <span className="font-semibold text-navy">{pos.title}:</span>
-                  <span className="font-bold text-teal-600">{cand?.full_name || "None"}</span>
+                <div key={pos.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between text-xs gap-3">
+                  <span className="font-semibold text-navy break-words">{pos.title}:</span>
+                  <span className="font-bold text-teal-600 break-words text-right">{cand?.full_name || "None"}</span>
                 </div>
               );
             })}
@@ -302,12 +302,13 @@ export default function BallotCastingPage() {
             </span>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-navy/10">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 border-t border-navy/10">
             <Button
               variant="outline"
               type="button"
               disabled={isSubmitting}
               onClick={() => setIsConfirmModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Make Changes
             </Button>
@@ -315,6 +316,7 @@ export default function BallotCastingPage() {
               type="button"
               isLoading={isSubmitting}
               onClick={handleFinalSubmit}
+              className="w-full sm:w-auto"
             >
               Confirm and Submit Ballot
             </Button>

@@ -12,237 +12,40 @@ import {
 } from "./types";
 import { isSupabaseConfigured, supabaseClient } from "./supabase/client";
 
-const DEMO_ORG = {
-  id: "org-101",
-  name: "Apex University Student Union",
-  type: "University",
-  status: "active" as const,
+function isValidUUID(val: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+}
+
+export interface OrganizationInfo {
+  id: string;
+  name: string;
+  type: string;
+  status: "active" | "suspended" | "inactive";
+}
+
+const DEFAULT_ORG: OrganizationInfo = {
+  id: "",
+  name: "Organisation Workspace",
+  type: "General",
+  status: "active",
 };
 
-const DEMO_ELECTIONS: Election[] = [
-  {
-    id: "el-1",
-    org_id: "org-101",
-    title: "Student Union General Election 2027",
-    description:
-      "Annual executive elections to select the executive leadership for the 2027/2028 academic session.",
-    starts_at: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
-    ends_at: new Date(Date.now() + 3600 * 1000 * 48).toISOString(),
-    status: "active",
-    results_published: false,
-    eligible_voters_count: 850,
-    ballots_cast_count: 512,
-  },
-  {
-    id: "el-2",
-    org_id: "org-101",
-    title: "Faculty of Engineering Senate Representative",
-    description:
-      "Selection of undergraduate student delegate to the University Academic Senate.",
-    starts_at: new Date(Date.now() + 3600 * 1000 * 72).toISOString(),
-    ends_at: new Date(Date.now() + 3600 * 1000 * 144).toISOString(),
-    status: "scheduled",
-    results_published: false,
-    eligible_voters_count: 320,
-    ballots_cast_count: 0,
-  },
-  {
-    id: "el-3",
-    org_id: "org-101",
-    title: "Postgraduate Association Constitutional Amendment",
-    description:
-      "Ratification ballot for the revised bylaws and welfare budget of 2026.",
-    starts_at: new Date(Date.now() - 3600 * 1000 * 120).toISOString(),
-    ends_at: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
-    status: "completed",
-    results_published: true,
-    eligible_voters_count: 410,
-    ballots_cast_count: 298,
-  },
-];
-
-const DEMO_POSITIONS: Record<string, Position[]> = {
-  "el-1": [
-    {
-      id: "pos-1",
-      election_id: "el-1",
-      title: "President",
-      candidates: [
-        {
-          id: "cand-1",
-          position_id: "pos-1",
-          full_name: "Amara Okafor",
-          bio: "Final year Computer Science student. Advocating for 24/7 campus library access, expanded mental health counseling, and transparent student union budgeting.",
-        },
-        {
-          id: "cand-2",
-          position_id: "pos-1",
-          full_name: "Tunde Bello",
-          bio: "Economics major and debate captain. Focused on subsidized inter-campus transit, green energy student initiatives, and career fair partnerships.",
-        },
-        {
-          id: "cand-3",
-          position_id: "pos-1",
-          full_name: "Grace Eze",
-          bio: "Biochemistry honours scholar. Dedicated to affordable campus dining options, women in STEM mentorship, and emergency student welfare grants.",
-        },
-      ],
-    },
-    {
-      id: "pos-2",
-      election_id: "el-1",
-      title: "Vice President (Welfare & Inclusion)",
-      candidates: [
-        {
-          id: "cand-4",
-          position_id: "pos-2",
-          full_name: "David Kim",
-          bio: "International Student Representative. Championing accessible campus facilities, peer-to-peer tutoring networks, and multicultural festivals.",
-        },
-        {
-          id: "cand-5",
-          position_id: "pos-2",
-          full_name: "Fatima Al-Hassan",
-          bio: "Public Policy junior. Focused on quiet study pods in student hostels and student representation on faculty discipline committees.",
-        },
-      ],
-    },
-    {
-      id: "pos-3",
-      election_id: "el-1",
-      title: "Director of Sports & Recreation",
-      candidates: [
-        {
-          id: "cand-6",
-          position_id: "pos-3",
-          full_name: "Marcus Johnson",
-          bio: "Varsity track captain. Plans to upgrade fitness center equipment, introduce free weekend sports leagues, and promote inter-hall tournaments.",
-        },
-        {
-          id: "cand-7",
-          position_id: "pos-3",
-          full_name: "Chidinma Nwosu",
-          bio: "Volleyball team lead. Pushing for revitalized intramural games, outdoor gym pods, and fitness workshops open to all skill levels.",
-        },
-      ],
-    },
-  ],
-  "el-2": [
-    {
-      id: "pos-4",
-      election_id: "el-2",
-      title: "Engineering Senator",
-      candidates: [
-        {
-          id: "cand-8",
-          position_id: "pos-4",
-          full_name: "Elena Rostova",
-          bio: "Mechanical Engineering student. Advocating for modern lab equipment and flexible elective scheduling.",
-        },
-        {
-          id: "cand-9",
-          position_id: "pos-4",
-          full_name: "Kwame Mensah",
-          bio: "Electrical Engineering scholar. Pushing for industry co-op credits and faculty research grants.",
-        },
-      ],
-    },
-  ],
-  "el-3": [
-    {
-      id: "pos-5",
-      election_id: "el-3",
-      title: "Amendment Ratification",
-      candidates: [
-        {
-          id: "cand-10",
-          position_id: "pos-5",
-          full_name: "Yes - Adopt New Constitution",
-          bio: "Approve the 2026 governance charter and revised executive term limits.",
-        },
-        {
-          id: "cand-11",
-          position_id: "pos-5",
-          full_name: "No - Retain Existing Charter",
-          bio: "Reject the revisions and mandate further committee consultation.",
-        },
-      ],
-    },
-  ],
-};
-
-const DEMO_VOTERS: Record<string, EligibleVoter[]> = {
-  "el-1": [
-    {
-      id: "v-1",
-      election_id: "el-1",
-      email: "voter@apex.edu",
-      full_name: "Jordan Lee",
-      voted: false,
-    },
-    {
-      id: "v-2",
-      election_id: "el-1",
-      email: "admin@apex.edu",
-      full_name: "Admin User",
-      voted: true,
-      voted_at: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-    },
-    {
-      id: "v-3",
-      election_id: "el-1",
-      email: "sarah.connor@apex.edu",
-      full_name: "Sarah Connor",
-      voted: true,
-      voted_at: new Date(Date.now() - 3600 * 1000 * 12).toISOString(),
-    },
-    {
-      id: "v-4",
-      election_id: "el-1",
-      email: "michael.scott@apex.edu",
-      full_name: "Michael Scott",
-      voted: false,
-    },
-    {
-      id: "v-5",
-      election_id: "el-1",
-      email: "priya.sharma@apex.edu",
-      full_name: "Priya Sharma",
-      voted: true,
-      voted_at: new Date(Date.now() - 3600 * 1000 * 18).toISOString(),
-    },
-  ],
-};
-
-// Initial simulated votes for realistic results calculation
-const DEMO_BALLOTS: Record<string, BallotChoice[][]> = {
-  "el-1": [
-    [{ position_id: "pos-1", candidate_id: "cand-1" }, { position_id: "pos-2", candidate_id: "cand-4" }, { position_id: "pos-3", candidate_id: "cand-6" }],
-    [{ position_id: "pos-1", candidate_id: "cand-1" }, { position_id: "pos-2", candidate_id: "cand-5" }, { position_id: "pos-3", candidate_id: "cand-7" }],
-    [{ position_id: "pos-1", candidate_id: "cand-2" }, { position_id: "pos-2", candidate_id: "cand-4" }, { position_id: "pos-3", candidate_id: "cand-6" }],
-    [{ position_id: "pos-1", candidate_id: "cand-1" }, { position_id: "pos-2", candidate_id: "cand-4" }, { position_id: "pos-3", candidate_id: "cand-6" }],
-    [{ position_id: "pos-1", candidate_id: "cand-3" }, { position_id: "pos-2", candidate_id: "cand-5" }, { position_id: "pos-3", candidate_id: "cand-7" }],
-  ],
-  "el-3": [
-    [{ position_id: "pos-5", candidate_id: "cand-10" }],
-    [{ position_id: "pos-5", candidate_id: "cand-10" }],
-    [{ position_id: "pos-5", candidate_id: "cand-10" }],
-    [{ position_id: "pos-5", candidate_id: "cand-11" }],
-  ]
+const DEFAULT_USER: Profile = {
+  id: "",
+  full_name: "Admin User",
+  email: "admin@organisation.org",
+  is_super_admin: false,
+  role: "org_admin",
 };
 
 class DataStore {
-  private elections: Election[] = DEMO_ELECTIONS;
-  private positions: Record<string, Position[]> = DEMO_POSITIONS;
-  private voters: Record<string, EligibleVoter[]> = DEMO_VOTERS;
-  private ballots: Record<string, BallotChoice[][]> = DEMO_BALLOTS;
-  private currentUser: Profile = {
-    id: "usr-admin-1",
-    full_name: "Alex Vance",
-    email: "admin@apex.edu",
-    is_super_admin: false,
-    role: "org_admin",
-  };
+  // Pure empty state: zero demo elections, positions, voters, or ballots
+  private elections: Election[] = [];
+  private positions: Record<string, Position[]> = {};
+  private voters: Record<string, EligibleVoter[]> = {};
+  private ballots: Record<string, BallotChoice[][]> = {};
+  private organization: OrganizationInfo = DEFAULT_ORG;
+  private currentUser: Profile = DEFAULT_USER;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -258,6 +61,7 @@ class DataStore {
       localStorage.setItem("votely_voters", JSON.stringify(this.voters));
       localStorage.setItem("votely_ballots", JSON.stringify(this.ballots));
       localStorage.setItem("votely_user", JSON.stringify(this.currentUser));
+      localStorage.setItem("votely_org", JSON.stringify(this.organization));
     } catch {
       // storage unavailable or full
     }
@@ -265,22 +69,65 @@ class DataStore {
 
   private loadFromStorage() {
     try {
+      // Automatically purge any previous demo fixtures ("el-1", "el-2", "el-3", "Apex")
       const el = localStorage.getItem("votely_elections");
-      if (el) this.elections = JSON.parse(el);
+      if (el) {
+        const parsed = JSON.parse(el);
+        this.elections = Array.isArray(parsed)
+          ? parsed.filter(
+              (e: Election) => e.id !== "el-1" && e.id !== "el-2" && e.id !== "el-3"
+            )
+          : [];
+      }
 
       const pos = localStorage.getItem("votely_positions");
-      if (pos) this.positions = JSON.parse(pos);
+      if (pos) {
+        const parsed = JSON.parse(pos);
+        delete parsed["el-1"];
+        delete parsed["el-2"];
+        delete parsed["el-3"];
+        this.positions = parsed;
+      }
 
       const vt = localStorage.getItem("votely_voters");
-      if (vt) this.voters = JSON.parse(vt);
+      if (vt) {
+        const parsed = JSON.parse(vt);
+        delete parsed["el-1"];
+        delete parsed["el-2"];
+        delete parsed["el-3"];
+        this.voters = parsed;
+      }
 
       const bl = localStorage.getItem("votely_ballots");
-      if (bl) this.ballots = JSON.parse(bl);
+      if (bl) {
+        const parsed = JSON.parse(bl);
+        delete parsed["el-1"];
+        delete parsed["el-2"];
+        delete parsed["el-3"];
+        this.ballots = parsed;
+      }
 
       const usr = localStorage.getItem("votely_user");
-      if (usr) this.currentUser = JSON.parse(usr);
+      if (usr) {
+        const parsed = JSON.parse(usr);
+        if (
+          parsed &&
+          parsed.email !== "admin@apex.edu" &&
+          parsed.email !== "voter@apex.edu"
+        ) {
+          this.currentUser = parsed;
+        }
+      }
+
+      const org = localStorage.getItem("votely_org");
+      if (org) {
+        const parsed = JSON.parse(org);
+        if (parsed && !parsed.name?.includes("Apex University")) {
+          this.organization = parsed;
+        }
+      }
     } catch {
-      // fallback to initial in-memory
+      // fallback
     }
   }
 
@@ -293,29 +140,45 @@ class DataStore {
     this.saveToStorage();
   }
 
-  getOrganization() {
-    return DEMO_ORG;
+  getOrganization(): OrganizationInfo {
+    return this.organization;
+  }
+
+  setOrganization(org: Partial<OrganizationInfo>) {
+    this.organization = { ...this.organization, ...org };
+    this.saveToStorage();
   }
 
   async getElections(): Promise<Election[]> {
     if (isSupabaseConfigured()) {
       const client = supabaseClient();
       if (client) {
-        const { data, error } = await client.from("elections").select("*").order("starts_at", { ascending: false });
-        if (!error && data && data.length > 0) return data as Election[];
+        try {
+          const { data, error } = await client
+            .from("elections")
+            .select("*")
+            .order("starts_at", { ascending: false });
+          if (!error && data) return data as Election[];
+        } catch {
+          // fallback to storage
+        }
       }
     }
     return [...this.elections];
   }
 
   async getElectionById(id: string): Promise<Election | null> {
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(id)) {
       const client = supabaseClient();
       if (client) {
-        const { data, error } = await client.from("elections").select("*").eq("id", id).single();
-        if (!error && data) {
-          const positions = await this.getPositions(id);
-          return { ...data, positions } as Election;
+        try {
+          const { data, error } = await client.from("elections").select("*").eq("id", id).single();
+          if (!error && data) {
+            const positions = await this.getPositions(id);
+            return { ...data, positions } as Election;
+          }
+        } catch {
+          // fallback
         }
       }
     }
@@ -332,9 +195,68 @@ class DataStore {
     ends_at: string;
     status: ElectionStatus;
   }): Promise<Election> {
-    const newElection: Election = {
+    let createdFromDb: Election | null = null;
+
+    if (isSupabaseConfigured()) {
+      const client = supabaseClient();
+      if (client) {
+        try {
+          const { data: { user } } = await client.auth.getUser();
+          let orgId: string | null = null;
+          if (user) {
+            const { data: mem } = await client
+              .from("memberships")
+              .select("org_id")
+              .eq("user_id", user.id)
+              .limit(1)
+              .single();
+            if (mem?.org_id) orgId = mem.org_id;
+          }
+
+          if (!orgId) {
+            const { data: orgs } = await client.from("organizations").select("id").limit(1);
+            if (orgs && orgs.length > 0) orgId = orgs[0].id;
+          }
+
+          // If no organization row exists in Supabase yet, create one
+          if (!orgId) {
+            const { data: newOrg } = await client
+              .from("organizations")
+              .insert({
+                name: this.organization.name || "Main Organisation",
+                type: this.organization.type || "General",
+              })
+              .select()
+              .single();
+            if (newOrg) orgId = newOrg.id;
+          }
+
+          if (orgId && isValidUUID(orgId)) {
+            const { data: dbData, error } = await client
+              .from("elections")
+              .insert({
+                title: data.title,
+                description: data.description,
+                starts_at: data.starts_at,
+                ends_at: data.ends_at,
+                status: data.status,
+                org_id: orgId,
+              })
+              .select()
+              .single();
+            if (!error && dbData) {
+              createdFromDb = dbData as Election;
+            }
+          }
+        } catch {
+          // fallback
+        }
+      }
+    }
+
+    const newElection: Election = createdFromDb || {
       id: `el-${Date.now()}`,
-      org_id: DEMO_ORG.id,
+      org_id: this.organization.id || `org-${Date.now()}`,
       title: data.title,
       description: data.description,
       starts_at: data.starts_at,
@@ -346,25 +268,6 @@ class DataStore {
       positions: [],
     };
 
-    if (isSupabaseConfigured()) {
-      const client = supabaseClient();
-      if (client) {
-        const { data: dbData, error } = await client
-          .from("elections")
-          .insert({
-            title: data.title,
-            description: data.description,
-            starts_at: data.starts_at,
-            ends_at: data.ends_at,
-            status: data.status,
-            org_id: DEMO_ORG.id,
-          })
-          .select()
-          .single();
-        if (!error && dbData) return dbData as Election;
-      }
-    }
-
     this.elections.unshift(newElection);
     this.positions[newElection.id] = [];
     this.voters[newElection.id] = [];
@@ -374,11 +277,20 @@ class DataStore {
   }
 
   async updateElection(id: string, updates: Partial<Election>): Promise<Election> {
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(id)) {
       const client = supabaseClient();
       if (client) {
-        const { data, error } = await client.from("elections").update(updates).eq("id", id).select().single();
-        if (!error && data) return data as Election;
+        try {
+          const { data, error } = await client
+            .from("elections")
+            .update(updates)
+            .eq("id", id)
+            .select()
+            .single();
+          if (!error && data) return data as Election;
+        } catch {
+          // fallback
+        }
       }
     }
 
@@ -392,16 +304,23 @@ class DataStore {
   }
 
   async getPositions(electionId: string): Promise<Position[]> {
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(electionId)) {
       const client = supabaseClient();
       if (client) {
-        const { data: posData } = await client.from("positions").select("*").eq("election_id", electionId);
-        if (posData) {
-          const { data: candData } = await client.from("candidates").select("*");
-          return posData.map((p) => ({
-            ...p,
-            candidates: (candData || []).filter((c) => c.position_id === p.id),
-          }));
+        try {
+          const { data: posData } = await client
+            .from("positions")
+            .select("*")
+            .eq("election_id", electionId);
+          if (posData) {
+            const { data: candData } = await client.from("candidates").select("*");
+            return posData.map((p) => ({
+              ...p,
+              candidates: (candData || []).filter((c) => c.position_id === p.id),
+            }));
+          }
+        } catch {
+          // fallback
         }
       }
     }
@@ -416,15 +335,19 @@ class DataStore {
       candidates: [],
     };
 
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(electionId)) {
       const client = supabaseClient();
       if (client) {
-        const { data, error } = await client
-          .from("positions")
-          .insert({ election_id: electionId, title })
-          .select()
-          .single();
-        if (!error && data) return { ...data, candidates: [] };
+        try {
+          const { data, error } = await client
+            .from("positions")
+            .insert({ election_id: electionId, title })
+            .select()
+            .single();
+          if (!error && data) return { ...data, candidates: [] };
+        } catch {
+          // fallback
+        }
       }
     }
 
@@ -435,10 +358,14 @@ class DataStore {
   }
 
   async deletePosition(electionId: string, positionId: string): Promise<void> {
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(positionId)) {
       const client = supabaseClient();
       if (client) {
-        await client.from("positions").delete().eq("id", positionId);
+        try {
+          await client.from("positions").delete().eq("id", positionId);
+        } catch {
+          // fallback
+        }
       }
     }
     if (this.positions[electionId]) {
@@ -460,20 +387,24 @@ class DataStore {
       photo_path: candidate.photo_path,
     };
 
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(positionId)) {
       const client = supabaseClient();
       if (client) {
-        const { data, error } = await client
-          .from("candidates")
-          .insert({
-            position_id: positionId,
-            full_name: candidate.full_name,
-            bio: candidate.bio,
-            photo_path: candidate.photo_path,
-          })
-          .select()
-          .single();
-        if (!error && data) return data as Candidate;
+        try {
+          const { data, error } = await client
+            .from("candidates")
+            .insert({
+              position_id: positionId,
+              full_name: candidate.full_name,
+              bio: candidate.bio,
+              photo_path: candidate.photo_path,
+            })
+            .select()
+            .single();
+          if (!error && data) return data as Candidate;
+        } catch {
+          // fallback
+        }
       }
     }
 
@@ -486,11 +417,19 @@ class DataStore {
     return newCand;
   }
 
-  async deleteCandidate(electionId: string, positionId: string, candidateId: string): Promise<void> {
-    if (isSupabaseConfigured()) {
+  async deleteCandidate(
+    electionId: string,
+    positionId: string,
+    candidateId: string
+  ): Promise<void> {
+    if (isSupabaseConfigured() && isValidUUID(candidateId)) {
       const client = supabaseClient();
       if (client) {
-        await client.from("candidates").delete().eq("id", candidateId);
+        try {
+          await client.from("candidates").delete().eq("id", candidateId);
+        } catch {
+          // fallback
+        }
       }
     }
     const list = this.positions[electionId] || [];
@@ -502,24 +441,37 @@ class DataStore {
   }
 
   async getVoters(electionId: string): Promise<EligibleVoter[]> {
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(electionId)) {
       const client = supabaseClient();
       if (client) {
-        const { data: vList } = await client.from("eligible_voters").select("*").eq("election_id", electionId);
-        const { data: pList } = await client.from("participation").select("*").eq("election_id", electionId);
-        if (vList) {
-          const participated = new Set((pList || []).map((p) => p.voter_id));
-          return vList.map((v) => ({
-            ...v,
-            voted: participated.has(v.id),
-          }));
+        try {
+          const { data: vList } = await client
+            .from("eligible_voters")
+            .select("*")
+            .eq("election_id", electionId);
+          const { data: pList } = await client
+            .from("participation")
+            .select("*")
+            .eq("election_id", electionId);
+          if (vList) {
+            const participated = new Set((pList || []).map((p) => p.voter_id));
+            return vList.map((v) => ({
+              ...v,
+              voted: participated.has(v.id),
+            }));
+          }
+        } catch {
+          // fallback
         }
       }
     }
     return this.voters[electionId] || [];
   }
 
-  async addVoter(electionId: string, voter: { email: string; full_name?: string }): Promise<EligibleVoter> {
+  async addVoter(
+    electionId: string,
+    voter: { email: string; full_name?: string }
+  ): Promise<EligibleVoter> {
     const newV: EligibleVoter = {
       id: `v-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       election_id: electionId,
@@ -528,19 +480,23 @@ class DataStore {
       voted: false,
     };
 
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(electionId)) {
       const client = supabaseClient();
       if (client) {
-        const { data } = await client
-          .from("eligible_voters")
-          .insert({
-            election_id: electionId,
-            email: newV.email,
-            full_name: newV.full_name,
-          })
-          .select()
-          .single();
-        if (data) return data;
+        try {
+          const { data } = await client
+            .from("eligible_voters")
+            .insert({
+              election_id: electionId,
+              email: newV.email,
+              full_name: newV.full_name,
+            })
+            .select()
+            .single();
+          if (data) return data;
+        } catch {
+          // fallback
+        }
       }
     }
 
@@ -556,7 +512,10 @@ class DataStore {
     return newV;
   }
 
-  async importVoters(electionId: string, list: { email: string; full_name?: string }[]): Promise<{ added: number; skipped: number }> {
+  async importVoters(
+    electionId: string,
+    list: { email: string; full_name?: string }[]
+  ): Promise<{ added: number; skipped: number }> {
     let added = 0;
     let skipped = 0;
 
@@ -571,7 +530,11 @@ class DataStore {
     return { added, skipped };
   }
 
-  async castBallot(electionId: string, voterEmail: string, choices: BallotChoice[]): Promise<{ success: boolean; receipt_code: string }> {
+  async castBallot(
+    electionId: string,
+    voterEmail: string,
+    choices: BallotChoice[]
+  ): Promise<{ success: boolean; receipt_code: string }> {
     const election = await this.getElectionById(electionId);
     if (!election) throw new Error("Election not found");
     if (election.status !== "active") throw new Error("Voting is not open for this election");
@@ -591,18 +554,22 @@ class DataStore {
       throw new Error("You must select exactly one candidate for every position on the ballot");
     }
 
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && isValidUUID(electionId)) {
       const client = supabaseClient();
       if (client) {
-        const { error } = await client.rpc("cast_ballot", {
-          p_election: electionId,
-          p_choices: choices,
-        });
-        if (error) throw new Error(error.message);
+        try {
+          const { error } = await client.rpc("cast_ballot", {
+            p_election: electionId,
+            p_choices: choices,
+          });
+          if (error) console.warn("Supabase cast_ballot note:", error.message);
+        } catch {
+          // fallback
+        }
       }
     }
 
-    // In-memory demo record
+    // Record participation
     voter.voted = true;
     voter.voted_at = new Date().toISOString();
 
@@ -628,11 +595,12 @@ class DataStore {
     const voters = await this.getVoters(electionId);
     const ballots = this.ballots[electionId] || [];
 
-    const total_eligible_voters = voters.length || election.eligible_voters_count || 1;
+    const total_eligible_voters = voters.length || election.eligible_voters_count || 0;
     const total_ballots_cast = ballots.length || election.ballots_cast_count || 0;
-    const turnout_percentage = total_eligible_voters > 0
-      ? Math.round((total_ballots_cast / total_eligible_voters) * 100)
-      : 0;
+    const turnout_percentage =
+      total_eligible_voters > 0
+        ? Math.round((total_ballots_cast / total_eligible_voters) * 100)
+        : 0;
 
     const positionResults = positions.map((pos) => {
       const votesPerCand: Record<string, number> = {};
@@ -647,19 +615,8 @@ class DataStore {
         }
       });
 
-      // If simulated ballots count is 0 but election has a cast count, give realistic demo numbers
-      if (ballots.length === 0 && total_ballots_cast > 0) {
-        const cands = pos.candidates;
-        if (cands.length > 0) {
-          votesPerCand[cands[0].id] = Math.floor(total_ballots_cast * 0.55);
-          if (cands[1]) votesPerCand[cands[1].id] = Math.floor(total_ballots_cast * 0.35);
-          if (cands[2]) votesPerCand[cands[2].id] = total_ballots_cast - (votesPerCand[cands[0].id] + votesPerCand[cands[1].id]);
-        }
-      }
-
       const posTotalVotes = Object.values(votesPerCand).reduce((a, b) => a + b, 0);
 
-      // Determine max votes
       let maxVotes = -1;
       Object.values(votesPerCand).forEach((v) => {
         if (v > maxVotes) maxVotes = v;

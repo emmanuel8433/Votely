@@ -4,27 +4,26 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { store } from "@/lib/store";
-import { Vote, LayoutDashboard, LogIn, UserCircle2, ArrowRight } from "lucide-react";
+import {
+  Vote,
+  LayoutDashboard,
+  LogIn,
+  ArrowRight,
+  Menu,
+  X,
+} from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname() || "";
   const [currentUser, setCurrentUser] = useState(store.getCurrentUser());
   const [mounted, setMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setCurrentUser(store.getCurrentUser());
+    setMobileMenuOpen(false);
   }, [pathname]);
-
-  const isAdmin = currentUser.role === "org_admin";
-
-  const toggleRole = () => {
-    const nextRole = isAdmin ? "voter" : "org_admin";
-    const nextEmail = nextRole === "org_admin" ? "admin@apex.edu" : "voter@apex.edu";
-    const nextName = nextRole === "org_admin" ? "Alex Vance (Admin)" : "Jordan Lee (Voter)";
-    store.setCurrentUser({ role: nextRole, email: nextEmail, full_name: nextName });
-    setCurrentUser(store.getCurrentUser());
-  };
 
   const isAdminRoute = pathname.startsWith("/admin");
   const isVoteRoute = pathname.startsWith("/vote");
@@ -32,10 +31,10 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-navy/10 bg-white/95 backdrop-blur-md">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-6 sm:gap-8">
           <Link
             href="/"
-            className="flex items-center gap-1.5 font-display text-2xl font-semibold text-navy tracking-tight"
+            className="flex items-center gap-1.5 font-display text-2xl font-bold text-navy tracking-tight shrink-0"
           >
             Votely<span className="text-teal">.</span>
           </Link>
@@ -60,27 +59,15 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Quick interactive role badge switcher for easy testing */}
-          <button
-            onClick={toggleRole}
-            title="Click to toggle between Admin and Voter view mode"
-            className="hidden sm:flex items-center gap-2 rounded-full border border-navy/15 bg-ice px-3 py-1.5 text-xs font-semibold text-navy hover:bg-navy/10 transition-colors"
-          >
-            <UserCircle2 size={15} className="text-teal-600" />
-            <span>
-              Role: <strong className="text-teal-600">{mounted && !isAdmin ? "Voter" : "Admin"}</strong>
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-ink/50 bg-white px-1.5 py-0.5 rounded-full border border-navy/10">switch</span>
-          </button>
-
+        {/* Desktop Controls */}
+        <div className="hidden sm:flex items-center gap-3">
           {isAdminRoute ? (
             <Link
               href="/vote"
               className="flex items-center gap-1.5 rounded-full bg-teal-100 px-4 py-2 text-xs font-bold text-teal-600 hover:bg-teal-100/80 transition-colors"
             >
               <Vote size={15} />
-              <span>Go to Voter Portal</span>
+              <span>Voter Portal</span>
             </Link>
           ) : isVoteRoute ? (
             <Link
@@ -88,7 +75,7 @@ export function Navbar() {
               className="flex items-center gap-1.5 rounded-full bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-800 transition-colors"
             >
               <LayoutDashboard size={15} />
-              <span>Go to Admin Portal</span>
+              <span>Admin Portal</span>
             </Link>
           ) : (
             <div className="flex items-center gap-2">
@@ -109,7 +96,59 @@ export function Navbar() {
             </div>
           )}
         </div>
+
+        {/* Mobile Hamburger Toggle */}
+        <div className="flex sm:hidden items-center gap-2">
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            type="button"
+            aria-label="Toggle navigation menu"
+            className="p-2 rounded-xl text-navy hover:bg-ice transition-colors border border-navy/10"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
       </nav>
+
+      {/* Mobile Drawer Dropdown */}
+      {mobileMenuOpen && (
+        <div className="sm:hidden border-t border-navy/10 bg-white px-4 py-4 space-y-2.5 shadow-lg">
+          <div className="flex flex-col space-y-1.5 pt-1">
+            <Link
+              href="/admin"
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                isAdminRoute ? "bg-navy text-white" : "text-navy hover:bg-ice"
+              }`}
+            >
+              <LayoutDashboard size={16} />
+              <span>Admin Portal</span>
+            </Link>
+            <Link
+              href="/vote"
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                isVoteRoute ? "bg-teal-100 text-teal-600 font-bold" : "text-navy hover:bg-ice"
+              }`}
+            >
+              <Vote size={16} />
+              <span>Voter Portal</span>
+            </Link>
+            <Link
+              href="/login"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-navy hover:bg-ice"
+            >
+              <LogIn size={16} />
+              <span>Sign In</span>
+            </Link>
+            <Link
+              href="/register"
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-amber text-navy font-bold text-sm"
+            >
+              <span>Register Organisation</span>
+              <ArrowRight size={16} />
+            </Link>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

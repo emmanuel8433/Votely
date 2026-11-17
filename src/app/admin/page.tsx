@@ -42,19 +42,19 @@ export default function AdminDashboardPage() {
   const totalVoters = elections.reduce((acc, e) => acc + (e.eligible_voters_count || 0), 0);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Top Welcome & Actions Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-semibold text-navy">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy">
             Elections Overview
           </h1>
-          <p className="mt-1 text-sm text-ink/70">
+          <p className="mt-1 text-xs sm:text-sm text-ink/70">
             Create elections, schedule voting windows, manage voter rosters, and review results.
           </p>
         </div>
 
-        <Link href="/admin/elections/new">
+        <Link href="/admin/elections/new" className="shrink-0">
           <Button size="md" className="w-full sm:w-auto">
             <Plus size={16} /> Create Election
           </Button>
@@ -62,35 +62,35 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Metrics Banner */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-navy/10 shadow-2xs">
-          <p className="text-xs font-semibold text-ink/60 uppercase tracking-wider">Total Elections</p>
-          <p className="mt-2 text-3xl font-bold text-navy">{totalElections}</p>
-          <p className="mt-1 text-xs text-ink/50">{activeCount} currently active</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-navy/10 shadow-2xs">
+          <p className="text-[11px] sm:text-xs font-semibold text-ink/60 uppercase tracking-wider">Total Elections</p>
+          <p className="mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-bold text-navy">{totalElections}</p>
+          <p className="mt-1 text-[11px] text-ink/50">{activeCount} currently active</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-navy/10 shadow-2xs">
-          <p className="text-xs font-semibold text-ink/60 uppercase tracking-wider">Active Elections</p>
-          <p className="mt-2 text-3xl font-bold text-teal-600">{activeCount}</p>
-          <p className="mt-1 text-xs text-ink/50">Accepting verified ballots</p>
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-navy/10 shadow-2xs">
+          <p className="text-[11px] sm:text-xs font-semibold text-ink/60 uppercase tracking-wider">Active Elections</p>
+          <p className="mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-bold text-teal-600">{activeCount}</p>
+          <p className="mt-1 text-[11px] text-ink/50">Accepting verified ballots</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-navy/10 shadow-2xs">
-          <p className="text-xs font-semibold text-ink/60 uppercase tracking-wider">Total Ballots Cast</p>
-          <p className="mt-2 text-3xl font-bold text-navy">{totalBallots.toLocaleString()}</p>
-          <p className="mt-1 text-xs text-ink/50">Across all completed & active</p>
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-navy/10 shadow-2xs">
+          <p className="text-[11px] sm:text-xs font-semibold text-ink/60 uppercase tracking-wider">Ballots Cast</p>
+          <p className="mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-bold text-navy">{totalBallots.toLocaleString()}</p>
+          <p className="mt-1 text-[11px] text-ink/50">Across all completed & active</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-navy/10 shadow-2xs">
-          <p className="text-xs font-semibold text-ink/60 uppercase tracking-wider">Enrolled Voters</p>
-          <p className="mt-2 text-3xl font-bold text-navy">{totalVoters.toLocaleString()}</p>
-          <p className="mt-1 text-xs text-ink/50">Verified on tenant rosters</p>
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-navy/10 shadow-2xs">
+          <p className="text-[11px] sm:text-xs font-semibold text-ink/60 uppercase tracking-wider">Enrolled Voters</p>
+          <p className="mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-bold text-navy">{totalVoters.toLocaleString()}</p>
+          <p className="mt-1 text-[11px] text-ink/50">Verified on tenant rosters</p>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-navy/10 pb-4">
-        <div className="flex rounded-xl bg-white p-1 border border-navy/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-navy/10 pb-4">
+        <div className="flex rounded-xl bg-white p-1 border border-navy/10 overflow-x-auto whitespace-nowrap scrollbar-none">
           {[
             { id: "all", label: "All" },
             { id: "active", label: "Active" },
@@ -101,7 +101,7 @@ export default function AdminDashboardPage() {
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id)}
-              className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+              className={`rounded-lg px-3 sm:px-3.5 py-1.5 text-xs font-bold transition-all shrink-0 ${
                 filter === tab.id
                   ? "bg-navy text-white shadow-2xs"
                   : "text-ink/60 hover:text-navy hover:bg-ice"
@@ -123,12 +123,12 @@ export default function AdminDashboardPage() {
           <p className="text-sm font-semibold text-navy">Loading elections...</p>
         </div>
       ) : filteredElections.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-navy/10">
+        <div className="bg-white rounded-2xl p-10 sm:p-12 text-center border border-navy/10">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-ice text-navy mb-3">
             <Vote size={24} />
           </div>
           <h3 className="font-display text-lg font-semibold text-navy">No elections found</h3>
-          <p className="mt-1 text-sm text-ink/70 max-w-sm mx-auto">
+          <p className="mt-1 text-xs sm:text-sm text-ink/70 max-w-sm mx-auto">
             {filter === "all"
               ? "You haven't created any elections yet. Get started by creating your first election."
               : `No elections currently in "${filter}" status.`}
@@ -163,10 +163,10 @@ export default function AdminDashboardPage() {
             return (
               <div
                 key={election.id}
-                className="bg-white rounded-2xl p-6 border border-navy/10 shadow-2xs hover:border-navy/20 transition-all flex flex-col md:flex-row md:items-center md:justify-between gap-6"
+                className="bg-white rounded-2xl p-5 sm:p-6 border border-navy/10 shadow-2xs hover:border-navy/20 transition-all flex flex-col md:flex-row md:items-center md:justify-between gap-5 sm:gap-6"
               >
-                <div className="flex-1 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={election.status} />
                     {election.results_published && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-600">
@@ -176,39 +176,39 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <Link href={`/admin/elections/${election.id}`}>
-                    <h2 className="font-display text-xl font-bold text-navy hover:text-teal transition-colors">
+                    <h2 className="font-display text-lg sm:text-xl font-bold text-navy hover:text-teal transition-colors break-words">
                       {election.title}
                     </h2>
                   </Link>
 
                   {election.description && (
-                    <p className="text-sm text-ink/75 line-clamp-2 max-w-2xl">
+                    <p className="text-xs sm:text-sm text-ink/75 line-clamp-2 max-w-2xl break-words">
                       {election.description}
                     </p>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-4 text-xs text-ink/65 pt-1">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-ink/65 pt-1">
                     <div className="flex items-center gap-1.5">
-                      <Calendar size={14} className="text-navy/60" />
-                      <span>
+                      <Calendar size={14} className="text-navy/60 shrink-0" />
+                      <span className="break-words">
                         {startDate} – {endDate}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <Users size={14} className="text-navy/60" />
-                      <span>{eligibleCount} eligible voters</span>
+                      <Users size={14} className="text-navy/60 shrink-0" />
+                      <span>{eligibleCount} eligible</span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <Vote size={14} className="text-navy/60" />
-                      <span>{ballotsCount} ballots cast</span>
+                      <Vote size={14} className="text-navy/60 shrink-0" />
+                      <span>{ballotsCount} cast</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Turnout Progress & Actions */}
-                <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between gap-4 border-t md:border-t-0 pt-4 md:pt-0 border-navy/10">
+                <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between gap-4 border-t md:border-t-0 pt-4 md:pt-0 border-navy/10 shrink-0">
                   <div className="w-full sm:w-44 text-left md:text-right">
                     <div className="flex items-center justify-between md:justify-end gap-2 text-xs font-semibold">
                       <span className="text-ink/60">Turnout</span>
