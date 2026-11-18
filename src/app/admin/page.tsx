@@ -15,12 +15,35 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock,
+  Link2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const [elections, setElections] = useState<Election[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyLink = async (electionId: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const inviteUrl = `${origin}/vote/join?election=${electionId}`;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopiedId(electionId);
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch {
+      const input = document.createElement("input");
+      input.value = inviteUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setCopiedId(electionId);
+      setTimeout(() => setCopiedId(null), 2500);
+    }
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -222,7 +245,30 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(election.id)}
+                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                        copiedId === election.id
+                          ? "bg-teal-600 text-white border-teal-600"
+                          : "bg-white text-navy border-navy/15 hover:bg-ice"
+                      }`}
+                      title="Copy voter invitation link"
+                    >
+                      {copiedId === election.id ? (
+                        <>
+                          <Check size={13} />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Link2 size={13} />
+                          <span>Copy Invite</span>
+                        </>
+                      )}
+                    </button>
+
                     <Link
                       href={`/admin/elections/${election.id}`}
                       className="flex-1 sm:flex-initial"

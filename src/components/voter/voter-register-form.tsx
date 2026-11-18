@@ -14,7 +14,7 @@ interface VoterRegisterFormProps {
   redirectTo?: string;
 }
 
-export function VoterRegisterForm({ onSuccess, redirectTo = "/vote" }: VoterRegisterFormProps) {
+export function VoterRegisterForm({ onSuccess, redirectTo }: VoterRegisterFormProps) {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -23,6 +23,21 @@ export function VoterRegisterForm({ onSuccess, redirectTo = "/vote" }: VoterRegi
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** After registration, go to the invited election or fallback to dashboard */
+  const resolveRedirect = (): string => {
+    if (redirectTo) return redirectTo;
+    try {
+      const pending = localStorage.getItem("votely_pending_election");
+      if (pending) {
+        localStorage.removeItem("votely_pending_election");
+        return `/vote/${pending}`;
+      }
+    } catch {
+      // storage unavailable
+    }
+    return "/vote";
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +104,7 @@ export function VoterRegisterForm({ onSuccess, redirectTo = "/vote" }: VoterRegi
           if (onSuccess) {
             onSuccess();
           } else {
-            router.push(redirectTo);
+            router.push(resolveRedirect());
           }
           return;
         }
@@ -106,7 +121,7 @@ export function VoterRegisterForm({ onSuccess, redirectTo = "/vote" }: VoterRegi
       if (onSuccess) {
         onSuccess();
       } else {
-        router.push(redirectTo);
+        router.push(resolveRedirect());
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to register voter account.");

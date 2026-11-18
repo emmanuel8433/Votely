@@ -156,6 +156,7 @@ class DataStore {
       is_super_admin: false,
       role: undefined,
     };
+    this.organization = { ...DEFAULT_ORG };
     this.saveToStorage();
     if (isSupabaseConfigured()) {
       const client = supabaseClient();
@@ -170,7 +171,11 @@ class DataStore {
   }
 
   setOrganization(org: Partial<OrganizationInfo>) {
-    this.organization = { ...this.organization, ...org };
+    this.organization = {
+      ...this.organization,
+      ...org,
+      id: org.id || this.organization.id || `org-${Date.now()}`,
+    };
     this.saveToStorage();
   }
 
@@ -189,7 +194,53 @@ class DataStore {
         }
       }
     }
+    // In local mode: if logged in as an org_admin, only return elections created for this organization
+    if (this.currentUser.role === "org_admin" && this.organization.id) {
+      return this.elections.filter(
+        (e) => !e.org_id || e.org_id === this.organization.id
+      );
+    }
     return [...this.elections];
+  }
+
+  /**
+   * Returns only elections that the given voter email has been invited to
+   * (i.e., appears in eligible_voters for that election).
+   * Used by the voter dashboard to scope visibility.
+   */
+  async getElectionsForVoter(email: string): Promise<Election[]> {
+    const normalised = email.toLowerCase().trim();
+
+    if (isSupabaseConfigured()) {
+      const client = supabaseClient();
+      if (client) {
+        try {
+          // Fetch all eligible_voter rows for this email
+          const { data: evRows, error: evError } = await client
+            .from("eligible_voters")
+            .select("election_id")
+            .eq("email", normalised);
+          if (!evError && evRows && evRows.length > 0) {
+            const ids = evRows.map((r: { election_id: string }) => r.election_id);
+            const { data: elections, error: elError } = await client
+              .from("elections")
+              .select("*")
+              .in("id", ids)
+              .order("starts_at", { ascending: false });
+            if (!elError && elections) return elections as Election[];
+          }
+          return [];
+        } catch {
+          // fallback
+        }
+      }
+    }
+
+    // Local-storage fallback: iterate elections, check voter roster
+    return this.elections.filter((el) => {
+      const roster = this.voters[el.id] || [];
+      return roster.some((v) => v.email.toLowerCase() === normalised);
+    });
   }
 
   async getElectionById(id: string): Promise<Election | null> {

@@ -30,6 +30,9 @@ import {
   Eye,
   Settings,
   AlertCircle,
+  Link2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 export default function ElectionDetailPage() {
@@ -52,6 +55,31 @@ export default function ElectionDetailPage() {
   const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
   const [selectedPositionForCandidate, setSelectedPositionForCandidate] = useState<Position | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Invite link copy state
+  const [copiedLink, setCopiedLink] = useState(false);
+  const getInviteLink = () =>
+    typeof window !== "undefined"
+      ? `${window.location.origin}/vote/join?election=${electionId}`
+      : `/vote/join?election=${electionId}`;
+
+  const handleCopyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getInviteLink());
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      // Fallback: select the text in a temporary input
+      const input = document.createElement("input");
+      input.value = getInviteLink();
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
 
   // Single voter add form state
   const [voterEmail, setVoterEmail] = useState("");
@@ -292,6 +320,45 @@ export default function ElectionDetailPage() {
           onDismiss={() => setError(null)}
         />
       )}
+
+      {/* ── Invite Link Panel ───────────────────────────────────────────────── */}
+      <div className="bg-teal-50 rounded-2xl p-4 sm:p-5 border border-teal/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600">
+            <Link2 size={18} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-navy">Voter Invitation Link</p>
+            <p className="text-xs text-ink/70 mt-0.5">
+              Share this link with voters. Clicking it will guide them through sign-in or
+              registration and land them directly on this election&apos;s ballot.
+            </p>
+            <p className="mt-1.5 text-xs font-mono text-teal-700 bg-teal-100/60 rounded-lg px-2 py-1 break-all">
+              {typeof window !== "undefined"
+                ? `${window.location.origin}/vote/join?election=${electionId}`
+                : `/vote/join?election=${electionId}`}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleCopyInviteLink}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all shrink-0 ${
+            copiedLink
+              ? "bg-teal-600 text-white border-teal-600"
+              : "bg-white text-navy border-navy/20 hover:bg-teal-50 hover:border-teal/30"
+          }`}
+        >
+          {copiedLink ? (
+            <>
+              <Check size={14} /> Copied!
+            </>
+          ) : (
+            <>
+              <Copy size={14} /> Copy Link
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Turnout & Key Statistics Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-navy/10 shadow-2xs">

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { store } from "@/lib/store";
-import { Election, EligibleVoter } from "@/lib/types";
+import { Election } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
   ArrowRight,
   BarChart3,
   FileCheck2,
+  Link2,
 } from "lucide-react";
 
 export default function VoterDashboardPage() {
@@ -26,18 +27,24 @@ export default function VoterDashboardPage() {
     async function loadData() {
       const activeUser = store.getCurrentUser();
       setCurrentUser(activeUser);
-      const all = await store.getElections();
-      setElections(all);
 
+      if (!activeUser?.email) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Only load elections this voter is enrolled in
+      const invited = await store.getElectionsForVoter(activeUser.email);
+      setElections(invited);
+
+      // Build voted-status map
       const statusMap: Record<string, boolean> = {};
-      if (activeUser?.email) {
-        for (const el of all) {
-          const voters = await store.getVoters(el.id);
-          const match = voters.find(
-            (v) => v.email.toLowerCase() === activeUser.email.toLowerCase()
-          );
-          statusMap[el.id] = Boolean(match && match.voted);
-        }
+      for (const el of invited) {
+        const voters = await store.getVoters(el.id);
+        const match = voters.find(
+          (v) => v.email.toLowerCase() === activeUser.email.toLowerCase()
+        );
+        statusMap[el.id] = Boolean(match && match.voted);
       }
       setVoterStatusMap(statusMap);
       setIsLoading(false);
@@ -60,23 +67,23 @@ export default function VoterDashboardPage() {
           {currentUser.full_name ? (
             <>Welcome, <strong>{currentUser.full_name}</strong>. </>
           ) : null}
-          View elections you are eligible to participate in, cast your confidential ballot, and verify published results.
+          Below are the elections you have been invited to participate in.
         </p>
       </div>
 
       {isLoading ? (
         <div className="bg-white rounded-3xl p-12 text-center border border-navy/10">
-          <p className="text-sm font-semibold text-navy">Loading elections...</p>
+          <p className="text-sm font-semibold text-navy">Loading your elections...</p>
         </div>
       ) : elections.length === 0 ? (
         <div className="bg-white rounded-3xl p-10 sm:p-12 text-center border border-navy/10 shadow-2xs space-y-4">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-ice text-navy">
-            <Vote size={28} />
+            <Link2 size={28} />
           </div>
-          <h2 className="font-display text-xl font-bold text-navy">No Elections Open Yet</h2>
+          <h2 className="font-display text-xl font-bold text-navy">No Elections Yet</h2>
           <p className="text-xs sm:text-sm text-ink/70 max-w-md mx-auto leading-relaxed">
-            There are currently no active or scheduled elections for this organisation.
-            Once an election is created and published by an administrator, it will appear here for eligible voters.
+            You haven&apos;t been invited to any elections yet. When an administrator shares an
+            invitation link with you, it will appear here after you sign in.
           </p>
         </div>
       ) : (
@@ -174,7 +181,8 @@ export default function VoterDashboardPage() {
                     <div className="min-w-0">
                       <StatusBadge status="scheduled" />
                       <h4 className="font-bold text-navy text-base mt-2 break-words">{el.title}</h4>
-                      <p className="text-xs text-ink/65 mt-1">
+                      <p className="text-xs text-ink/65 mt-1 flex items-center gap-1">
+                        <Calendar size={12} />
                         Opens on {new Date(el.starts_at).toLocaleDateString()}
                       </p>
                     </div>

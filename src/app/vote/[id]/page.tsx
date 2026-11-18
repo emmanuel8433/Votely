@@ -31,6 +31,7 @@ export default function BallotCastingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
+  const [isEligible, setIsEligible] = useState<boolean | null>(null); // null = not yet checked
   const [error, setError] = useState<string | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
@@ -50,14 +51,19 @@ export default function BallotCastingPage() {
         const pos = await store.getPositions(electionId);
         setPositions(pos);
 
-        // Check if voter already cast ballot
+        // Check eligibility AND voted status
         const voters = await store.getVoters(electionId);
         const currentVoter = voters.find(
           (v) => v.email.toLowerCase() === currentUser.email.toLowerCase()
         );
 
-        if (currentVoter && currentVoter.voted) {
-          setHasVoted(true);
+        if (!currentVoter) {
+          setIsEligible(false);
+        } else {
+          setIsEligible(true);
+          if (currentVoter.voted) {
+            setHasVoted(true);
+          }
         }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load ballot");
@@ -153,6 +159,30 @@ export default function BallotCastingPage() {
           <Link href="/vote">
             <Button variant="outline" size="md" className="w-full sm:w-auto">
               Back to Elections
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Not on this election's eligible voter roster
+  if (isEligible === false) {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-500">
+          <AlertCircle size={32} />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-navy">Not Eligible for This Election</h2>
+        <p className="text-sm text-ink/70 leading-relaxed">
+          Your email address (<strong>{currentUser.email}</strong>) is not on the eligible voter
+          roster for this election. If you believe this is an error, please contact the election
+          administrator.
+        </p>
+        <div className="pt-4">
+          <Link href="/vote">
+            <Button variant="outline" size="md">
+              Back to My Elections
             </Button>
           </Link>
         </div>

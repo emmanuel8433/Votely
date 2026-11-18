@@ -15,12 +15,29 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = searchParams.get("role") === "voter" ? "voter" : "org_admin";
+  // Explicit redirect param takes priority; fallback: check pending election in localStorage
+  const explicitRedirect = searchParams.get("redirect");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"org_admin" | "voter">(initialRole);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** Determine where to send the user after a successful voter login */
+  const resolveVoterRedirect = (): string => {
+    if (explicitRedirect) return explicitRedirect;
+    try {
+      const pending = localStorage.getItem("votely_pending_election");
+      if (pending) {
+        localStorage.removeItem("votely_pending_election");
+        return `/vote/${pending}`;
+      }
+    } catch {
+      // storage unavailable
+    }
+    return "/vote";
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +71,7 @@ function LoginContent() {
             role,
           });
 
-          router.push(role === "org_admin" ? "/admin" : "/vote");
+          router.push(role === "org_admin" ? "/admin" : resolveVoterRedirect());
           return;
         }
       }
@@ -65,7 +82,7 @@ function LoginContent() {
         full_name: email.split("@")[0].replace(".", " "),
         role,
       });
-      router.push(role === "org_admin" ? "/admin" : "/vote");
+      router.push(role === "org_admin" ? "/admin" : resolveVoterRedirect());
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Authentication failed");
       setIsLoading(false);
