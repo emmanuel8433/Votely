@@ -17,22 +17,24 @@ import {
 } from "lucide-react";
 
 export default function VoterDashboardPage() {
+  const [currentUser, setCurrentUser] = useState(store.getCurrentUser());
   const [elections, setElections] = useState<Election[]>([]);
   const [voterStatusMap, setVoterStatusMap] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const currentUser = store.getCurrentUser();
 
   useEffect(() => {
     async function loadData() {
+      const activeUser = store.getCurrentUser();
+      setCurrentUser(activeUser);
       const all = await store.getElections();
       setElections(all);
 
       const statusMap: Record<string, boolean> = {};
-      if (currentUser?.email) {
+      if (activeUser?.email) {
         for (const el of all) {
           const voters = await store.getVoters(el.id);
           const match = voters.find(
-            (v) => v.email.toLowerCase() === currentUser.email.toLowerCase()
+            (v) => v.email.toLowerCase() === activeUser.email.toLowerCase()
           );
           statusMap[el.id] = Boolean(match && match.voted);
         }
@@ -41,7 +43,7 @@ export default function VoterDashboardPage() {
       setIsLoading(false);
     }
     loadData();
-  }, [currentUser?.email]);
+  }, []);
 
   const activeElections = elections.filter((e) => e.status === "active");
   const pastElections = elections.filter((e) => e.status === "completed");

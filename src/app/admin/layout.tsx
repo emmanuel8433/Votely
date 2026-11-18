@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { store } from "@/lib/store";
 import {
   Vote,
@@ -12,18 +12,45 @@ import {
   ShieldCheck,
   ChevronRight,
   ExternalLink,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname() || "";
   const [org, setOrg] = useState(store.getOrganization());
   const [user, setUser] = useState(store.getCurrentUser());
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
+    const currentUser = store.getCurrentUser();
+    // Guard: Require authenticated user with org_admin role
+    if (!currentUser.email || currentUser.role !== "org_admin") {
+      router.replace("/login?role=org_admin");
+      return;
+    }
     setOrg(store.getOrganization());
-    setUser(store.getCurrentUser());
-  }, []);
+    setUser(currentUser);
+    setIsCheckingAuth(false);
+  }, [router, pathname]);
+
+  const handleSignOut = () => {
+    store.signOut();
+    router.replace("/login?role=org_admin");
+  };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-ice flex flex-col items-center justify-center p-6 text-center">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-navy text-white mb-4 animate-pulse">
+          <ShieldCheck size={26} />
+        </div>
+        <h2 className="text-lg font-bold text-navy">Verifying Admin Access...</h2>
+        <p className="text-xs text-ink/60 mt-1">Checking administrator credentials</p>
+      </div>
+    );
+  }
 
   const displayName = org?.name || "Organisation Workspace";
   const orgInitial = displayName.charAt(0).toUpperCase();
@@ -89,6 +116,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </p>
                 <p className="text-ink/50 text-[10px]">Administrator</p>
               </div>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                title="Sign out of admin workspace"
+                className="text-ink/50 hover:text-red-600 p-1.5 rounded-lg hover:bg-ice transition-colors ml-1"
+              >
+                <LogOut size={15} />
+              </button>
             </div>
           </div>
         </div>

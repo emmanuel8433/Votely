@@ -1,18 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navigation/navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/notification";
 import { store } from "@/lib/store";
 import { isSupabaseConfigured, supabaseClient } from "@/lib/supabase/client";
-import { Building2, ArrowRight } from "lucide-react";
+import { VoterRegisterForm } from "@/components/voter/voter-register-form";
+import { Building2, Vote, ArrowRight } from "lucide-react";
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialRole = searchParams.get("role") === "voter" ? "voter" : "org_admin";
+
+  const [role, setRole] = useState<"org_admin" | "voter">(initialRole);
+
+  // Admin registration form state
   const [orgName, setOrgName] = useState("");
   const [adminName, setAdminName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,7 +28,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleAdminRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orgName.trim() || !adminName.trim() || !email.trim()) {
       setError("Please fill out all required fields.");
@@ -43,7 +50,7 @@ export default function RegisterPage() {
           const { data, error: signUpError } = await client.auth.signUp({
             email,
             password,
-            options: { data: { full_name: adminName } },
+            options: { data: { full_name: adminName, role: "org_admin" } },
           });
           if (signUpError) throw new Error(signUpError.message);
           if (!data.user) throw new Error("Sign up failed — no user returned.");
@@ -83,23 +90,58 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-ice flex flex-col">
-      <Navbar />
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-navy/10">
-          <div className="mb-6">
-            <span className="font-display text-2xl font-bold text-navy">
-              Votely<span className="text-teal">.</span>
-            </span>
-            <h1 className="mt-2 text-2xl font-bold text-navy">Register your organisation</h1>
-            <p className="mt-1 text-xs sm:text-sm text-ink/70">
-              Set up your secure voting platform in less than two minutes.
-            </p>
-          </div>
+    <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-navy/10">
+      <div className="mb-6">
+        <span className="font-display text-2xl font-bold text-navy">
+          Votely<span className="text-teal">.</span>
+        </span>
+        <h1 className="mt-2 text-2xl font-bold text-navy">
+          {role === "org_admin" ? "Register your organisation" : "Register as an eligible voter"}
+        </h1>
+        <p className="mt-1 text-xs sm:text-sm text-ink/70">
+          {role === "org_admin"
+            ? "Set up your secure voting platform in less than two minutes."
+            : "Create your voting credentials to participate in accredited elections."}
+        </p>
+      </div>
 
+      {/* Role Selection Toggle */}
+      <div className="flex rounded-xl bg-ice p-1 border border-navy/10 mb-6">
+        <button
+          type="button"
+          onClick={() => {
+            setRole("org_admin");
+            setError(null);
+          }}
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            role === "org_admin" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
+          }`}
+        >
+          <Building2 size={14} />
+          Organisation Admin
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setRole("voter");
+            setError(null);
+          }}
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            role === "voter" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
+          }`}
+        >
+          <Vote size={14} />
+          Eligible Voter
+        </button>
+      </div>
+
+      {role === "voter" ? (
+        <VoterRegisterForm />
+      ) : (
+        <>
           {error && <Alert type="error" message={error} className="mb-5" />}
 
-          <form onSubmit={handleRegister} className="space-y-4">
+          <form onSubmit={handleAdminRegister} className="space-y-4">
             <Input
               label="Organisation Name"
               placeholder="e.g. National Bar Association"
@@ -159,14 +201,30 @@ export default function RegisterPage() {
               </Button>
             </div>
           </form>
+        </>
+      )}
 
-          <div className="mt-6 pt-5 border-t border-navy/10 text-center text-xs text-ink/70">
-            Already registered?{" "}
-            <Link href="/login" className="font-semibold text-teal-600 hover:text-teal">
-              Sign in here
-            </Link>
-          </div>
-        </div>
+      <div className="mt-6 pt-5 border-t border-navy/10 text-center text-xs text-ink/70">
+        Already have an account?{" "}
+        <Link
+          href={role === "voter" ? "/login?role=voter" : "/login"}
+          className="font-semibold text-teal-600 hover:text-teal"
+        >
+          {role === "voter" ? "Sign in to vote" : "Sign in here"}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <div className="min-h-screen bg-ice flex flex-col">
+      <Navbar />
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
+        <Suspense fallback={<div className="text-center p-12 text-sm font-semibold text-navy">Loading...</div>}>
+          <RegisterContent />
+        </Suspense>
       </main>
     </div>
   );

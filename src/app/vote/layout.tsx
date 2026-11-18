@@ -2,18 +2,46 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { store } from "@/lib/store";
-import { ShieldCheck, Vote, LayoutDashboard } from "lucide-react";
+import { ShieldCheck, Vote, LayoutDashboard, LogOut } from "lucide-react";
 
 export default function VoterLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState(store.getCurrentUser());
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
+    const currentUser = store.getCurrentUser();
+    // Guard: Require authenticated voter
+    if (!currentUser.email) {
+      router.replace("/login?role=voter");
+      return;
+    }
+    setUser(currentUser);
+    setIsCheckingAuth(false);
+  }, [router]);
+
+  const handleSignOut = () => {
+    store.signOut();
     setUser(store.getCurrentUser());
-  }, []);
+    router.replace("/login?role=voter");
+  };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-ice flex flex-col items-center justify-center p-6 text-center">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 mb-4 animate-pulse">
+          <Vote size={26} />
+        </div>
+        <h2 className="text-lg font-bold text-navy">Verifying Voter Access...</h2>
+        <p className="text-xs text-ink/60 mt-1">Authenticating voter credentials</p>
+      </div>
+    );
+  }
 
   const displayName = user.full_name || (user.email ? user.email.split("@")[0] : "Voter");
-  const userInitial = displayName.charAt(0).toUpperCase();
+  const userInitial = displayName ? displayName.charAt(0).toUpperCase() : "V";
 
   return (
     <div className="min-h-screen bg-ice flex flex-col text-ink">
@@ -27,7 +55,7 @@ export default function VoterLayout({ children }: { children: React.ReactNode })
             Votely<span className="text-teal">.</span>
           </Link>
 
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="flex items-center gap-2 text-xs">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100 font-bold text-teal-600 shrink-0">
                 {userInitial}
@@ -42,13 +70,15 @@ export default function VoterLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
 
-            <Link
-              href="/admin"
-              className="text-xs font-semibold text-navy hover:text-teal flex items-center gap-1 border border-navy/15 rounded-full px-3 py-1.5 bg-ice"
+            <button
+              type="button"
+              onClick={handleSignOut}
+              title="Sign out"
+              className="text-ink/60 hover:text-red-600 p-1.5 rounded-lg hover:bg-ice transition-colors flex items-center gap-1 text-xs"
             >
-              <LayoutDashboard size={13} className="shrink-0" />
-              <span className="hidden sm:inline">Admin Portal</span>
-            </Link>
+              <LogOut size={14} />
+              <span className="hidden md:inline">Sign out</span>
+            </button>
           </div>
         </div>
       </header>

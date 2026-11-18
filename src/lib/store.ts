@@ -32,10 +32,10 @@ const DEFAULT_ORG: OrganizationInfo = {
 
 const DEFAULT_USER: Profile = {
   id: "",
-  full_name: "Admin User",
-  email: "admin@organisation.org",
+  full_name: "",
+  email: "",
   is_super_admin: false,
-  role: "org_admin",
+  role: undefined,
 };
 
 class DataStore {
@@ -112,10 +112,14 @@ class DataStore {
         const parsed = JSON.parse(usr);
         if (
           parsed &&
+          parsed.email &&
           parsed.email !== "admin@apex.edu" &&
-          parsed.email !== "voter@apex.edu"
+          parsed.email !== "voter@apex.edu" &&
+          parsed.email !== "admin@organisation.org"
         ) {
           this.currentUser = parsed;
+        } else {
+          this.currentUser = { ...DEFAULT_USER };
         }
       }
 
@@ -131,6 +135,10 @@ class DataStore {
     }
   }
 
+  isAuthenticated(): boolean {
+    return Boolean(this.currentUser && this.currentUser.email);
+  }
+
   getCurrentUser(): Profile {
     return this.currentUser;
   }
@@ -138,6 +146,23 @@ class DataStore {
   setCurrentUser(user: Partial<Profile>) {
     this.currentUser = { ...this.currentUser, ...user };
     this.saveToStorage();
+  }
+
+  signOut() {
+    this.currentUser = {
+      id: "",
+      full_name: "",
+      email: "",
+      is_super_admin: false,
+      role: undefined,
+    };
+    this.saveToStorage();
+    if (isSupabaseConfigured()) {
+      const client = supabaseClient();
+      if (client) {
+        client.auth.signOut().catch(() => {});
+      }
+    }
   }
 
   getOrganization(): OrganizationInfo {
