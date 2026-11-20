@@ -61,7 +61,13 @@ function RegisterContent() {
             const res = await fetch("/api/organizations", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ orgName, orgType, userId: data.user.id }),
+              body: JSON.stringify({
+                orgName,
+                orgType,
+                userId: data.user.id,
+                userEmail: email,
+                fullName: adminName,
+              }),
             });
             if (res.ok) {
               const body = await res.json();
@@ -74,6 +80,12 @@ function RegisterContent() {
           // 3. Update store
           store.setCurrentUser({ id: data.user.id, full_name: adminName, email, role: "org_admin" });
           store.setOrganization({ id: orgId, name: orgName, type: orgType, status: "active" });
+          await store.syncUserSession({
+            userId: data.user.id,
+            email,
+            fullName: adminName,
+            role: "org_admin",
+          });
           router.push("/onboarding?org=" + encodeURIComponent(orgName));
           return;
         }

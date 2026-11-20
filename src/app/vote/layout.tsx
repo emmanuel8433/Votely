@@ -12,14 +12,18 @@ export default function VoterLayout({ children }: { children: React.ReactNode })
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const currentUser = store.getCurrentUser();
-    // Guard: Require authenticated voter
-    if (!currentUser.email) {
-      router.replace("/login?role=voter");
-      return;
+    async function initVoter() {
+      const currentUser = store.getCurrentUser();
+      // Guard: Require authenticated voter
+      if (!currentUser.email) {
+        router.replace("/login?role=voter");
+        return;
+      }
+      await store.syncUserSession();
+      setUser(store.getCurrentUser());
+      setIsCheckingAuth(false);
     }
-    setUser(currentUser);
-    setIsCheckingAuth(false);
+    initVoter();
   }, [router]);
 
   const handleSignOut = () => {

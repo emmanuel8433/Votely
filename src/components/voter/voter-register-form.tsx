@@ -100,6 +100,12 @@ export function VoterRegisterForm({ onSuccess, redirectTo }: VoterRegisterFormPr
             full_name: trimmedName,
             role: "voter",
           });
+          await store.syncUserSession({
+            userId: data.user.id,
+            email: data.user.email ?? trimmedEmail,
+            fullName: trimmedName,
+            role: "voter",
+          });
 
           if (onSuccess) {
             onSuccess();

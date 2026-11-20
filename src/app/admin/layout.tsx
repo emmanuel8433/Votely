@@ -24,15 +24,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const currentUser = store.getCurrentUser();
-    // Guard: Require authenticated user with org_admin role
-    if (!currentUser.email || currentUser.role !== "org_admin") {
-      router.replace("/login?role=org_admin");
-      return;
+    async function initAdmin() {
+      const currentUser = store.getCurrentUser();
+      // Guard: Require authenticated user with org_admin role
+      if (!currentUser.email || currentUser.role !== "org_admin") {
+        router.replace("/login?role=org_admin");
+        return;
+      }
+      await store.syncUserSession();
+      setOrg(store.getOrganization());
+      setUser(store.getCurrentUser());
+      setIsCheckingAuth(false);
     }
-    setOrg(store.getOrganization());
-    setUser(currentUser);
-    setIsCheckingAuth(false);
+    initAdmin();
   }, [router, pathname]);
 
   const handleSignOut = () => {

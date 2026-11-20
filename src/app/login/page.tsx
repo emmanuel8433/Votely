@@ -64,10 +64,19 @@ function LoginContent() {
           if (authError) throw new Error(authError.message);
 
           // Sync authenticated user into store
+          const resolvedName = data.user.user_metadata?.full_name ?? email.split("@")[0];
           store.setCurrentUser({
             id: data.user.id,
             email: data.user.email ?? email,
-            full_name: data.user.user_metadata?.full_name ?? email.split("@")[0],
+            full_name: resolvedName,
+            role,
+          });
+
+          // Sync organization and session with database
+          await store.syncUserSession({
+            userId: data.user.id,
+            email: data.user.email ?? email,
+            fullName: resolvedName,
             role,
           });
 

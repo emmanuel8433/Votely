@@ -39,17 +39,21 @@ const DEFAULT_USER: Profile = {
 };
 
 class DataStore {
-  // Pure empty state: zero demo elections, positions, voters, or ballots
   private elections: Election[] = [];
   private positions: Record<string, Position[]> = {};
   private voters: Record<string, EligibleVoter[]> = {};
   private ballots: Record<string, BallotChoice[][]> = {};
-  private organization: OrganizationInfo = DEFAULT_ORG;
-  private currentUser: Profile = DEFAULT_USER;
+  private organization: OrganizationInfo = { ...DEFAULT_ORG };
+  private currentUser: Profile = { ...DEFAULT_USER };
+  private isMigrating = false;
 
   constructor() {
     if (typeof window !== "undefined") {
       this.loadFromStorage();
+      // Asynchronously sync session with cloud if user was logged in
+      if (this.currentUser.email) {
+        this.syncUserSession();
+      }
     }
   }
 
@@ -69,7 +73,6 @@ class DataStore {
 
   private loadFromStorage() {
     try {
-      // Automatically purge any previous demo fixtures ("el-1", "el-2", "el-3", "Apex")
       const el = localStorage.getItem("votely_elections");
       if (el) {
         const parsed = JSON.parse(el);
@@ -149,14 +152,12 @@ class DataStore {
   }
 
   signOut() {
-    this.currentUser = {
-      id: "",
-      full_name: "",
-      email: "",
-      is_super_admin: false,
-      role: undefined,
-    };
+    this.currentUser = { ...DEFAULT_USER };
     this.organization = { ...DEFAULT_ORG };
+    this.elections = [];
+    this.positions = {};
+    this.voters = {};
+    this.ballots = {};
     this.saveToStorage();
     if (isSupabaseConfigured()) {
       const client = supabaseClient();
@@ -179,22 +180,174 @@ class DataStore {
     this.saveToStorage();
   }
 
-  async getElections(): Promise<Election[]> {
-    if (isSupabaseConfigured()) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data, error } = await client
-            .from("elections")
-            .select("*")
-            .order("starts_at", { ascending: false });
-          if (!error && data) return data as Election[];
-        } catch {
-          // fallback to storage
+  /**
+   * Synchronizes user profile, organization, and local data with the cloud database.
+   * Ensures that logging in on any device pulls down the user's correct organization
+   * and shared elections.
+   */
+  async syncUserSession(data?: {
+    userId?: string;
+    email?: string;
+    fullName?: string;
+    role?: "org_admin" | "voter";
+  }): Promise<void> {
+    const userId = data?.userId || this.currentUser.id;
+    const email = data?.email || this.currentUser.email;
+    const fullName = data?.fullName || this.currentUser.full_name;
+    const role = data?.role || this.currentUser.role;
+
+    if (!email && !userId) return;
+
+    try {
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, email, fullName, role }),
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        if (body.profile) {
+          this.currentUser = {
+            ...this.currentUser,
+            id: body.profile.id || this.currentUser.id,
+            email: body.profile.email || this.currentUser.email,
+            full_name: body.profile.full_name || this.currentUser.full_name,
+            role: body.profile.role || this.currentUser.role,
+          };
+        }
+        if (body.organization) {
+          this.organization = {
+            id: body.organization.id,
+            name: body.organization.name,
+            type: body.organization.type || "General",
+            status: body.organization.status || "active",
+          };
+        }
+        this.saveToStorage();
+
+        // Migrate any previous local-only elections created on this device to the database
+        await this.migrateLocalDataToDb();
+      }
+    } catch {
+      // Non-blocking: continue with stored credentials if offline
+    }
+  }
+
+  /**
+   * Uploads any legacy local elections created on this machine that were never saved to Supabase
+   */
+  async migrateLocalDataToDb(): Promise<void> {
+    if (this.isMigrating || !this.organization.id || !isValidUUID(this.organization.id)) return;
+    this.isMigrating = true;
+
+    try {
+      const localOnlyElections = this.elections.filter(
+        (e) => !isValidUUID(e.id) && e.id.startsWith("el-")
+      );
+
+      for (const localEl of localOnlyElections) {
+        const res = await fetch("/api/elections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: localEl.title,
+            description: localEl.description,
+            starts_at: localEl.starts_at,
+            ends_at: localEl.ends_at,
+            status: localEl.status,
+            org_id: this.organization.id,
+            userId: this.currentUser.id,
+          }),
+        });
+
+        if (res.ok) {
+          const body = await res.json();
+          const cloudEl: Election = body.election;
+          if (cloudEl && cloudEl.id) {
+            // Migrate positions
+            const localPositions = this.positions[localEl.id] || [];
+            for (const p of localPositions) {
+              const posRes = await fetch(`/api/elections/${cloudEl.id}/positions`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title: p.title }),
+              });
+              if (posRes.ok) {
+                const posBody = await posRes.json();
+                const cloudPos: Position = posBody.position;
+                for (const c of p.candidates || []) {
+                  await fetch(`/api/elections/${cloudEl.id}/candidates`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      position_id: cloudPos.id,
+                      full_name: c.full_name,
+                      bio: c.bio,
+                      photo_path: c.photo_path,
+                    }),
+                  });
+                }
+              }
+            }
+
+            // Migrate voters
+            const localVoters = this.voters[localEl.id] || [];
+            if (localVoters.length > 0) {
+              await fetch(`/api/elections/${cloudEl.id}/voters`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  voters: localVoters.map((v) => ({
+                    email: v.email,
+                    full_name: v.full_name,
+                  })),
+                }),
+              });
+            }
+
+            // Replace local election with cloud election
+            this.elections = this.elections.filter((e) => e.id !== localEl.id);
+            this.elections.unshift(cloudEl);
+            delete this.positions[localEl.id];
+            delete this.voters[localEl.id];
+            delete this.ballots[localEl.id];
+            this.saveToStorage();
+          }
         }
       }
+    } catch (e) {
+      console.warn("Migration note:", e);
+    } finally {
+      this.isMigrating = false;
     }
-    // In local mode: if logged in as an org_admin, only return elections created for this organization
+  }
+
+  async getElections(): Promise<Election[]> {
+    try {
+      const params = new URLSearchParams();
+      if (this.organization.id && isValidUUID(this.organization.id)) {
+        params.append("orgId", this.organization.id);
+      }
+      if (this.currentUser.id && isValidUUID(this.currentUser.id)) {
+        params.append("userId", this.currentUser.id);
+      }
+
+      const url = `/api/elections${params.toString() ? `?${params.toString()}` : ""}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const body = await res.json();
+        if (body.elections && Array.isArray(body.elections)) {
+          this.elections = body.elections;
+          this.saveToStorage();
+          return body.elections;
+        }
+      }
+    } catch {
+      // fallback
+    }
+
+    // Local fallback
     if (this.currentUser.role === "org_admin" && this.organization.id) {
       return this.elections.filter(
         (e) => !e.org_id || e.org_id === this.organization.id
@@ -204,39 +357,23 @@ class DataStore {
   }
 
   /**
-   * Returns only elections that the given voter email has been invited to
-   * (i.e., appears in eligible_voters for that election).
-   * Used by the voter dashboard to scope visibility.
+   * Returns only elections that the given voter email has been invited to.
    */
   async getElectionsForVoter(email: string): Promise<Election[]> {
     const normalised = email.toLowerCase().trim();
 
-    if (isSupabaseConfigured()) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          // Fetch all eligible_voter rows for this email
-          const { data: evRows, error: evError } = await client
-            .from("eligible_voters")
-            .select("election_id")
-            .eq("email", normalised);
-          if (!evError && evRows && evRows.length > 0) {
-            const ids = evRows.map((r: { election_id: string }) => r.election_id);
-            const { data: elections, error: elError } = await client
-              .from("elections")
-              .select("*")
-              .in("id", ids)
-              .order("starts_at", { ascending: false });
-            if (!elError && elections) return elections as Election[];
-          }
-          return [];
-        } catch {
-          // fallback
+    try {
+      const res = await fetch(`/api/elections?voterEmail=${encodeURIComponent(normalised)}`);
+      if (res.ok) {
+        const body = await res.json();
+        if (body.elections && Array.isArray(body.elections)) {
+          return body.elections;
         }
       }
+    } catch {
+      // fallback
     }
 
-    // Local-storage fallback: iterate elections, check voter roster
     return this.elections.filter((el) => {
       const roster = this.voters[el.id] || [];
       return roster.some((v) => v.email.toLowerCase() === normalised);
@@ -244,20 +381,20 @@ class DataStore {
   }
 
   async getElectionById(id: string): Promise<Election | null> {
-    if (isSupabaseConfigured() && isValidUUID(id)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data, error } = await client.from("elections").select("*").eq("id", id).single();
-          if (!error && data) {
-            const positions = await this.getPositions(id);
-            return { ...data, positions } as Election;
+    if (isValidUUID(id)) {
+      try {
+        const res = await fetch(`/api/elections/${id}`);
+        if (res.ok) {
+          const body = await res.json();
+          if (body.election) {
+            return body.election;
           }
-        } catch {
-          // fallback
         }
+      } catch {
+        // fallback
       }
     }
+
     const found = this.elections.find((e) => e.id === id);
     if (!found) return null;
     const positions = await this.getPositions(id);
@@ -271,66 +408,38 @@ class DataStore {
     ends_at: string;
     status: ElectionStatus;
   }): Promise<Election> {
-    let createdFromDb: Election | null = null;
+    try {
+      const res = await fetch("/api/elections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          starts_at: data.starts_at,
+          ends_at: data.ends_at,
+          status: data.status,
+          org_id: this.organization.id,
+          userId: this.currentUser.id,
+        }),
+      });
 
-    if (isSupabaseConfigured()) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data: { user } } = await client.auth.getUser();
-          let orgId: string | null = null;
-          if (user) {
-            const { data: mem } = await client
-              .from("memberships")
-              .select("org_id")
-              .eq("user_id", user.id)
-              .limit(1)
-              .single();
-            if (mem?.org_id) orgId = mem.org_id;
-          }
-
-          if (!orgId) {
-            const { data: orgs } = await client.from("organizations").select("id").limit(1);
-            if (orgs && orgs.length > 0) orgId = orgs[0].id;
-          }
-
-          // If no organization row exists in Supabase yet, create one
-          if (!orgId) {
-            const { data: newOrg } = await client
-              .from("organizations")
-              .insert({
-                name: this.organization.name || "Main Organisation",
-                type: this.organization.type || "General",
-              })
-              .select()
-              .single();
-            if (newOrg) orgId = newOrg.id;
-          }
-
-          if (orgId && isValidUUID(orgId)) {
-            const { data: dbData, error } = await client
-              .from("elections")
-              .insert({
-                title: data.title,
-                description: data.description,
-                starts_at: data.starts_at,
-                ends_at: data.ends_at,
-                status: data.status,
-                org_id: orgId,
-              })
-              .select()
-              .single();
-            if (!error && dbData) {
-              createdFromDb = dbData as Election;
-            }
-          }
-        } catch {
-          // fallback
+      if (res.ok) {
+        const body = await res.json();
+        if (body.election) {
+          const newEl: Election = body.election;
+          this.elections.unshift(newEl);
+          this.positions[newEl.id] = [];
+          this.voters[newEl.id] = [];
+          this.ballots[newEl.id] = [];
+          this.saveToStorage();
+          return newEl;
         }
       }
+    } catch {
+      // fallback
     }
 
-    const newElection: Election = createdFromDb || {
+    const newElection: Election = {
       id: `el-${Date.now()}`,
       org_id: this.organization.id || `org-${Date.now()}`,
       title: data.title,
@@ -353,20 +462,26 @@ class DataStore {
   }
 
   async updateElection(id: string, updates: Partial<Election>): Promise<Election> {
-    if (isSupabaseConfigured() && isValidUUID(id)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data, error } = await client
-            .from("elections")
-            .update(updates)
-            .eq("id", id)
-            .select()
-            .single();
-          if (!error && data) return data as Election;
-        } catch {
-          // fallback
+    if (isValidUUID(id)) {
+      try {
+        const res = await fetch(`/api/elections/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.election) {
+            const index = this.elections.findIndex((e) => e.id === id);
+            if (index !== -1) {
+              this.elections[index] = { ...this.elections[index], ...body.election };
+            }
+            this.saveToStorage();
+            return body.election;
+          }
         }
+      } catch {
+        // fallback
       }
     }
 
@@ -380,53 +495,52 @@ class DataStore {
   }
 
   async getPositions(electionId: string): Promise<Position[]> {
-    if (isSupabaseConfigured() && isValidUUID(electionId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data: posData } = await client
-            .from("positions")
-            .select("*")
-            .eq("election_id", electionId);
-          if (posData) {
-            const { data: candData } = await client.from("candidates").select("*");
-            return posData.map((p) => ({
-              ...p,
-              candidates: (candData || []).filter((c) => c.position_id === p.id),
-            }));
+    if (isValidUUID(electionId)) {
+      try {
+        const res = await fetch(`/api/elections/${electionId}/positions`);
+        if (res.ok) {
+          const body = await res.json();
+          if (body.positions) {
+            this.positions[electionId] = body.positions;
+            this.saveToStorage();
+            return body.positions;
           }
-        } catch {
-          // fallback
         }
+      } catch {
+        // fallback
       }
     }
     return this.positions[electionId] || [];
   }
 
   async addPosition(electionId: string, title: string): Promise<Position> {
+    if (isValidUUID(electionId)) {
+      try {
+        const res = await fetch(`/api/elections/${electionId}/positions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.position) {
+            if (!this.positions[electionId]) this.positions[electionId] = [];
+            this.positions[electionId].push(body.position);
+            this.saveToStorage();
+            return body.position;
+          }
+        }
+      } catch {
+        // fallback
+      }
+    }
+
     const newPos: Position = {
       id: `pos-${Date.now()}`,
       election_id: electionId,
       title,
       candidates: [],
     };
-
-    if (isSupabaseConfigured() && isValidUUID(electionId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data, error } = await client
-            .from("positions")
-            .insert({ election_id: electionId, title })
-            .select()
-            .single();
-          if (!error && data) return { ...data, candidates: [] };
-        } catch {
-          // fallback
-        }
-      }
-    }
-
     if (!this.positions[electionId]) this.positions[electionId] = [];
     this.positions[electionId].push(newPos);
     this.saveToStorage();
@@ -434,14 +548,13 @@ class DataStore {
   }
 
   async deletePosition(electionId: string, positionId: string): Promise<void> {
-    if (isSupabaseConfigured() && isValidUUID(positionId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          await client.from("positions").delete().eq("id", positionId);
-        } catch {
-          // fallback
-        }
+    if (isValidUUID(positionId)) {
+      try {
+        await fetch(`/api/elections/${electionId}/positions?posId=${positionId}`, {
+          method: "DELETE",
+        });
+      } catch {
+        // fallback
       }
     }
     if (this.positions[electionId]) {
@@ -455,6 +568,35 @@ class DataStore {
     positionId: string,
     candidate: { full_name: string; bio: string; photo_path?: string }
   ): Promise<Candidate> {
+    if (isValidUUID(positionId)) {
+      try {
+        const res = await fetch(`/api/elections/${electionId}/candidates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            position_id: positionId,
+            full_name: candidate.full_name,
+            bio: candidate.bio,
+            photo_path: candidate.photo_path,
+          }),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.candidate) {
+            const list = this.positions[electionId] || [];
+            const pos = list.find((p) => p.id === positionId);
+            if (pos) {
+              pos.candidates.push(body.candidate);
+              this.saveToStorage();
+            }
+            return body.candidate;
+          }
+        }
+      } catch {
+        // fallback
+      }
+    }
+
     const newCand: Candidate = {
       id: `cand-${Date.now()}`,
       position_id: positionId,
@@ -462,28 +604,6 @@ class DataStore {
       bio: candidate.bio,
       photo_path: candidate.photo_path,
     };
-
-    if (isSupabaseConfigured() && isValidUUID(positionId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data, error } = await client
-            .from("candidates")
-            .insert({
-              position_id: positionId,
-              full_name: candidate.full_name,
-              bio: candidate.bio,
-              photo_path: candidate.photo_path,
-            })
-            .select()
-            .single();
-          if (!error && data) return data as Candidate;
-        } catch {
-          // fallback
-        }
-      }
-    }
-
     const list = this.positions[electionId] || [];
     const pos = list.find((p) => p.id === positionId);
     if (pos) {
@@ -498,14 +618,13 @@ class DataStore {
     positionId: string,
     candidateId: string
   ): Promise<void> {
-    if (isSupabaseConfigured() && isValidUUID(candidateId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          await client.from("candidates").delete().eq("id", candidateId);
-        } catch {
-          // fallback
-        }
+    if (isValidUUID(candidateId)) {
+      try {
+        await fetch(`/api/elections/${electionId}/candidates?candidateId=${candidateId}`, {
+          method: "DELETE",
+        });
+      } catch {
+        // fallback
       }
     }
     const list = this.positions[electionId] || [];
@@ -517,28 +636,19 @@ class DataStore {
   }
 
   async getVoters(electionId: string): Promise<EligibleVoter[]> {
-    if (isSupabaseConfigured() && isValidUUID(electionId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data: vList } = await client
-            .from("eligible_voters")
-            .select("*")
-            .eq("election_id", electionId);
-          const { data: pList } = await client
-            .from("participation")
-            .select("*")
-            .eq("election_id", electionId);
-          if (vList) {
-            const participated = new Set((pList || []).map((p) => p.voter_id));
-            return vList.map((v) => ({
-              ...v,
-              voted: participated.has(v.id),
-            }));
+    if (isValidUUID(electionId)) {
+      try {
+        const res = await fetch(`/api/elections/${electionId}/voters`);
+        if (res.ok) {
+          const body = await res.json();
+          if (body.voters) {
+            this.voters[electionId] = body.voters;
+            this.saveToStorage();
+            return body.voters;
           }
-        } catch {
-          // fallback
         }
+      } catch {
+        // fallback
       }
     }
     return this.voters[electionId] || [];
@@ -548,33 +658,35 @@ class DataStore {
     electionId: string,
     voter: { email: string; full_name?: string }
   ): Promise<EligibleVoter> {
+    const cleanEmail = voter.email.toLowerCase().trim();
+
+    if (isValidUUID(electionId)) {
+      const res = await fetch(`/api/elections/${electionId}/voters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, full_name: voter.full_name }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body.voter) {
+          if (!this.voters[electionId]) this.voters[electionId] = [];
+          this.voters[electionId].push(body.voter);
+          this.saveToStorage();
+          return body.voter;
+        }
+      } else {
+        const errBody = await res.json();
+        throw new Error(errBody.error || "Failed to add voter");
+      }
+    }
+
     const newV: EligibleVoter = {
       id: `v-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       election_id: electionId,
-      email: voter.email.toLowerCase().trim(),
+      email: cleanEmail,
       full_name: voter.full_name,
       voted: false,
     };
-
-    if (isSupabaseConfigured() && isValidUUID(electionId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { data } = await client
-            .from("eligible_voters")
-            .insert({
-              election_id: electionId,
-              email: newV.email,
-              full_name: newV.full_name,
-            })
-            .select()
-            .single();
-          if (data) return data;
-        } catch {
-          // fallback
-        }
-      }
-    }
 
     if (!this.voters[electionId]) this.voters[electionId] = [];
     const existing = this.voters[electionId].find((v) => v.email === newV.email);
@@ -592,9 +704,25 @@ class DataStore {
     electionId: string,
     list: { email: string; full_name?: string }[]
   ): Promise<{ added: number; skipped: number }> {
+    if (isValidUUID(electionId)) {
+      try {
+        const res = await fetch(`/api/elections/${electionId}/voters`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voters: list }),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          await this.getVoters(electionId);
+          return { added: body.added || 0, skipped: body.skipped || 0 };
+        }
+      } catch {
+        // fallback
+      }
+    }
+
     let added = 0;
     let skipped = 0;
-
     for (const item of list) {
       try {
         await this.addVoter(electionId, item);
@@ -611,6 +739,21 @@ class DataStore {
     voterEmail: string,
     choices: BallotChoice[]
   ): Promise<{ success: boolean; receipt_code: string }> {
+    if (isValidUUID(electionId)) {
+      const res = await fetch(`/api/elections/${electionId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voterEmail, choices }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return { success: true, receipt_code: body.receipt_code };
+      } else {
+        const errBody = await res.json();
+        throw new Error(errBody.error || "Failed to cast ballot");
+      }
+    }
+
     const election = await this.getElectionById(electionId);
     if (!election) throw new Error("Election not found");
     if (election.status !== "active") throw new Error("Voting is not open for this election");
@@ -630,22 +773,6 @@ class DataStore {
       throw new Error("You must select exactly one candidate for every position on the ballot");
     }
 
-    if (isSupabaseConfigured() && isValidUUID(electionId)) {
-      const client = supabaseClient();
-      if (client) {
-        try {
-          const { error } = await client.rpc("cast_ballot", {
-            p_election: electionId,
-            p_choices: choices,
-          });
-          if (error) console.warn("Supabase cast_ballot note:", error.message);
-        } catch {
-          // fallback
-        }
-      }
-    }
-
-    // Record participation
     voter.voted = true;
     voter.voted_at = new Date().toISOString();
 
@@ -664,6 +791,20 @@ class DataStore {
   }
 
   async getElectionResults(electionId: string): Promise<ElectionResultsData> {
+    if (isValidUUID(electionId)) {
+      try {
+        const res = await fetch(`/api/elections/${electionId}/results`);
+        if (res.ok) {
+          const body = await res.json();
+          if (body.results) {
+            return body.results;
+          }
+        }
+      } catch {
+        // fallback
+      }
+    }
+
     const election = await this.getElectionById(electionId);
     if (!election) throw new Error("Election not found");
 
