@@ -75,34 +75,34 @@ export default function Home() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="bg-navy text-white">
-          <div className="mx-auto grid max-w-7xl items-center gap-10 lg:gap-12 px-4 py-16 sm:px-6 md:grid-cols-2 md:py-24">
-            <div className="space-y-6">
-              <span className="inline-flex items-center gap-2 rounded-full bg-navy-700 px-3.5 py-1 text-xs font-semibold text-teal-100 border border-teal/20">
-                <ShieldCheck size={14} className="text-teal" />
-                Next-Generation Voting Platform
+        <section className="bg-navy text-white overflow-hidden w-full">
+          <div className="mx-auto grid max-w-7xl items-center gap-8 sm:gap-10 lg:gap-12 px-4 py-10 sm:px-6 sm:py-16 md:grid-cols-2 md:py-24">
+            <div className="space-y-4 sm:space-y-6 w-full min-w-0">
+              <span className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-navy-700 px-3 py-1 sm:px-3.5 text-xs font-semibold text-teal-100 border border-teal/20 max-w-full">
+                <ShieldCheck size={14} className="text-teal shrink-0" />
+                <span className="truncate">Next-Generation Voting Platform</span>
               </span>
 
-              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight break-words">
+              <h1 className="font-display text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.15] tracking-tight break-words">
                 Modern elections. Trusted results.
               </h1>
 
-              <p className="max-w-lg text-sm sm:text-base md:text-lg text-white/80 leading-relaxed">
+              <p className="max-w-lg text-xs sm:text-base md:text-lg text-white/80 leading-relaxed break-words">
                 Votely gives universities, associations, and organisations a secure, transparent, and
                 verifiable way to run online elections and publish certified outcomes.
               </p>
 
-              <div className="flex flex-col sm:flex-row flex-wrap gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2 w-full">
                 <Link
                   href="/register"
-                  className="rounded-xl bg-amber px-6 py-3.5 font-bold text-navy hover:brightness-95 transition-all shadow-sm flex items-center justify-center gap-2"
+                  className="rounded-xl bg-amber px-5 sm:px-6 py-3.5 font-bold text-navy hover:brightness-95 transition-all shadow-sm flex items-center justify-center gap-2 w-full sm:w-auto text-sm sm:text-base text-center"
                 >
                   <span>Register organisation</span>
-                  <ArrowRight size={16} />
+                  <ArrowRight size={16} className="shrink-0" />
                 </Link>
                 <Link
                   href="/vote"
-                  className="rounded-xl border border-white/20 px-6 py-3.5 font-semibold text-white hover:bg-white/10 transition-colors text-center"
+                  className="rounded-xl border border-white/20 px-5 sm:px-6 py-3.5 font-semibold text-white hover:bg-white/10 transition-colors text-center w-full sm:w-auto text-sm sm:text-base"
                 >
                   Explore Voter Experience
                 </Link>
@@ -110,20 +110,20 @@ export default function Home() {
             </div>
 
             {/* Interactive Ballot Card Preview */}
-            <div className="rounded-3xl bg-white p-5 sm:p-7 text-ink shadow-2xl border border-white/10" aria-label="Sample ballot">
+            <div className="rounded-3xl bg-white p-4 sm:p-7 text-ink shadow-xl sm:shadow-2xl border border-white/10 w-full min-w-0 max-w-full" aria-label="Sample ballot">
               <div className="flex items-center justify-between pb-3 border-b border-navy/10 gap-2">
-                <div className="min-w-0">
-                  <p className="font-display text-lg sm:text-xl font-bold text-navy truncate">
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-base sm:text-xl font-bold text-navy truncate">
                     Student Union Election 2027
                   </p>
-                  <p className="text-xs text-ink/60 truncate">Position: President • Click to select</p>
+                  <p className="text-[11px] sm:text-xs text-ink/60 truncate">Position: President • Click to select</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-teal-100 text-teal-600 px-2.5 py-0.5 text-xs font-bold">
+                <span className="shrink-0 rounded-full bg-teal-100 text-teal-600 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-bold">
                   Active Demo
                 </span>
               </div>
 
-              <div className="mt-4 space-y-2.5">
+              <div className="mt-3.5 sm:mt-4 space-y-2.5">
                 {previewCandidates.map((cand) => {
                   const isSelected = selectedCandidate === cand.name;
                   return (
@@ -138,14 +138,14 @@ export default function Home() {
                           setSelectedCandidate(cand.name);
                         }
                       }}
-                      className={`flex items-start gap-3 rounded-2xl border-2 p-3 sm:p-3.5 transition-all cursor-pointer ${
+                      className={`flex items-start gap-2.5 sm:gap-3 rounded-2xl border-2 p-2.5 sm:p-3.5 transition-all cursor-pointer ${
                         isSelected
                           ? "border-teal bg-teal-100/30 shadow-xs"
                           : "border-ice bg-white hover:bg-ice/50 hover:border-navy/15"
                       }`}
                     >
                       <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold transition-colors ${
+                        className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl text-xs sm:text-sm font-bold transition-colors ${
                           isSelected ? "bg-teal text-white" : "bg-ice text-navy"
                         }`}
                       >
@@ -153,12 +153,12 @@ export default function Home() {
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="font-bold text-navy text-sm truncate">{cand.name}</span>
+                          <span className="font-bold text-navy text-xs sm:text-sm truncate">{cand.name}</span>
                           {isSelected && (
-                            <span className="text-[11px] font-bold text-teal-600 shrink-0">Selected</span>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-teal-600 shrink-0">Selected</span>
                           )}
                         </div>
-                        <p className="text-xs text-ink/70 mt-0.5 leading-snug break-words">
+                        <p className="text-[11px] sm:text-xs text-ink/70 mt-0.5 leading-snug break-words">
                           {cand.manifesto}
                         </p>
                       </div>
@@ -167,8 +167,8 @@ export default function Home() {
                 })}
               </div>
 
-              <div className="mt-4 pt-3.5 border-t border-navy/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <span className="text-xs text-ink/60 flex items-center gap-1.5">
+              <div className="mt-3.5 sm:mt-4 pt-3.5 border-t border-navy/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
+                <span className="text-[11px] sm:text-xs text-ink/60 flex items-center gap-1.5 justify-center sm:justify-start">
                   <Lock size={13} className="text-teal-600 shrink-0" />
                   <span>Choices are 100% private & sealed</span>
                 </span>
@@ -263,24 +263,24 @@ export default function Home() {
         </section>
 
         {/* Ready to start CTA */}
-        <section className="bg-navy py-16 sm:py-20 text-white">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center space-y-6">
-            <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold">
+        <section className="bg-navy py-12 sm:py-20 text-white overflow-hidden w-full">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center space-y-5 sm:space-y-6">
+            <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold break-words">
               Ready to modernize your elections?
             </h2>
-            <p className="max-w-xl mx-auto text-sm sm:text-base text-white/80">
+            <p className="max-w-xl mx-auto text-xs sm:text-base text-white/80 leading-relaxed break-words">
               Start building your first election now. Free setup, no credit card required.
             </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-2 w-full">
               <Link
                 href="/register"
-                className="rounded-xl bg-amber px-7 py-3.5 font-bold text-navy hover:brightness-95 transition-all shadow-sm text-center"
+                className="rounded-xl bg-amber px-6 py-3.5 font-bold text-navy hover:brightness-95 transition-all shadow-sm text-center w-full sm:w-auto text-sm sm:text-base"
               >
                 Get Started with Votely
               </Link>
               <Link
                 href="/login"
-                className="rounded-xl border border-white/20 px-7 py-3.5 font-semibold text-white hover:bg-white/10 transition-colors text-center"
+                className="rounded-xl border border-white/20 px-6 py-3.5 font-semibold text-white hover:bg-white/10 transition-colors text-center w-full sm:w-auto text-sm sm:text-base"
               >
                 Sign In
               </Link>
