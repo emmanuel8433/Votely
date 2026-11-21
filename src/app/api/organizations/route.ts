@@ -73,28 +73,30 @@ export async function GET(req: NextRequest) {
         .from("memberships")
         .select("org_id, role, organizations(*)")
         .eq("user_id", userId)
+        .eq("role", "org_admin")
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (mem && mem.organizations) {
+        const rawOrg: any = Array.isArray(mem.organizations) ? mem.organizations[0] : mem.organizations;
         return NextResponse.json({
           success: true,
-          org: mem.organizations,
-          role: mem.role,
+          org: rawOrg,
+          role: "org_admin",
         });
       }
-    }
 
-    // Fallback: return first active organization
-    const { data: orgs } = await admin
-      .from("organizations")
-      .select("*")
-      .eq("status", "active")
-      .limit(1);
+      // If user is not an org_admin, return null (do NOT leak other organizations)
+      return NextResponse.json({
+        success: true,
+        org: null,
+        role: "voter",
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      org: orgs && orgs.length > 0 ? orgs[0] : null,
+      org: null,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal Server Error";

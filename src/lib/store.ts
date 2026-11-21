@@ -23,6 +23,13 @@ export interface OrganizationInfo {
   status: "active" | "suspended" | "inactive";
 }
 
+export interface LocalAccount {
+  email: string;
+  role: "org_admin" | "voter";
+  full_name: string;
+  org_id?: string;
+}
+
 const DEFAULT_ORG: OrganizationInfo = {
   id: "",
   name: "Organisation Workspace",
@@ -45,6 +52,7 @@ class DataStore {
   private ballots: Record<string, BallotChoice[][]> = {};
   private organization: OrganizationInfo = { ...DEFAULT_ORG };
   private currentUser: Profile = { ...DEFAULT_USER };
+  private accounts: LocalAccount[] = [];
   private isMigrating = false;
 
   constructor() {
@@ -66,6 +74,7 @@ class DataStore {
       localStorage.setItem("votely_ballots", JSON.stringify(this.ballots));
       localStorage.setItem("votely_user", JSON.stringify(this.currentUser));
       localStorage.setItem("votely_org", JSON.stringify(this.organization));
+      localStorage.setItem("votely_accounts", JSON.stringify(this.accounts));
     } catch {
       // storage unavailable or full
     }
@@ -133,9 +142,47 @@ class DataStore {
           this.organization = parsed;
         }
       }
+
+      const acc = localStorage.getItem("votely_accounts");
+      if (acc) {
+        this.accounts = JSON.parse(acc) || [];
+      }
     } catch {
       // fallback
     }
+  }
+
+  registerAccount(account: LocalAccount) {
+    const normEmail = account.email.toLowerCase().trim();
+    this.accounts = this.accounts.filter(a => a.email.toLowerCase().trim() !== normEmail);
+    this.accounts.push({
+      ...account,
+      email: normEmail,
+    });
+    this.saveToStorage();
+  }
+
+  getAccount(email: string): LocalAccount | undefined {
+    const normEmail = email.toLowerCase().trim();
+    return this.accounts.find(a => a.email.toLowerCase().trim() === normEmail);
+  }
+
+  isVoterEmail(email: string): boolean {
+    const normEmail = email.toLowerCase().trim();
+    const acc = this.accounts.find(a => a.email.toLowerCase().trim() === normEmail);
+    if (acc && acc.role === "voter") return true;
+    for (const elId of Object.keys(this.voters)) {
+      if (this.voters[elId]?.some(v => v.email.toLowerCase().trim() === normEmail)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  isAdminEmail(email: string): boolean {
+    const normEmail = email.toLowerCase().trim();
+    const acc = this.accounts.find(a => a.email.toLowerCase().trim() === normEmail);
+    return Boolean(acc && acc.role === "org_admin");
   }
 
   isAuthenticated(): boolean {
@@ -216,13 +263,15 @@ class DataStore {
             role: body.profile.role || this.currentUser.role,
           };
         }
-        if (body.organization) {
+        if (body.organization && body.profile?.role === "org_admin") {
           this.organization = {
             id: body.organization.id,
             name: body.organization.name,
             type: body.organization.type || "General",
             status: body.organization.status || "active",
           };
+        } else if (body.profile?.role === "voter" || !body.organization) {
+          this.organization = { ...DEFAULT_ORG };
         }
         this.saveToStorage();
 
@@ -324,6 +373,10 @@ class DataStore {
   }
 
   async getElections(): Promise<Election[]> {
+    // If the active session is a voter, strictly return only the elections they are invited to
+    if (this.currentUser.role === "voter" && this.currentUser.email) {
+      return this.getElectionsForVoter(this.currentUser.email);
+    }
     try {
       const params = new URLSearchParams();
       if (this.organization.id && isValidUUID(this.organization.id)) {

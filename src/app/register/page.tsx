@@ -78,6 +78,7 @@ function RegisterContent() {
           }
 
           // 3. Update store
+          store.registerAccount({ email, role: "org_admin", full_name: adminName, org_id: orgId });
           store.setCurrentUser({ id: data.user.id, full_name: adminName, email, role: "org_admin" });
           store.setOrganization({ id: orgId, name: orgName, type: orgType, status: "active" });
           await store.syncUserSession({
@@ -92,6 +93,7 @@ function RegisterContent() {
       }
 
       // Local session if no Supabase configured
+      store.registerAccount({ email, role: "org_admin", full_name: adminName });
       store.setCurrentUser({ full_name: adminName, email, role: "org_admin" });
       store.setOrganization({ name: orgName, type: orgType, status: "active" });
       router.push("/onboarding?org=" + encodeURIComponent(orgName));

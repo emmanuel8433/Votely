@@ -63,29 +63,84 @@ function LoginContent() {
           });
           if (authError) throw new Error(authError.message);
 
-          // Sync authenticated user into store
+          if (!data.user) {
+            throw new Error("Authentication failed: No user returned.");
+          }
+
+          const registeredRole = data.user.user_metadata?.role as "org_admin" | "voter" | undefined;
           const resolvedName = data.user.user_metadata?.full_name ?? email.split("@")[0];
+
+          // Determine authoritative role and organization from backend
+          const syncRes = await fetch("/api/auth/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: data.user.id,
+              email: data.user.email ?? email,
+              fullName: resolvedName,
+              role: registeredRole,
+            }),
+          });
+
+          let syncedRole: "org_admin" | "voter" = registeredRole === "org_admin" ? "org_admin" : "voter";
+          let syncedOrg = null;
+
+          if (syncRes.ok) {
+            const syncData = await syncRes.json();
+            if (syncData.profile?.role) {
+              syncedRole = syncData.profile.role;
+            }
+            if (syncData.organization) {
+              syncedOrg = syncData.organization;
+            }
+          }
+
+          // SECURITY CHECK: If attempting to sign in as Organisation Admin
+          if (role === "org_admin") {
+            if (registeredRole === "voter" || syncedRole !== "org_admin" || !syncedOrg) {
+              // Deny admin access: immediately terminate Supabase session and clean store
+              await client.auth.signOut().catch(() => {});
+              store.signOut();
+              setError("Access denied: This account is registered as an eligible voter and does not have administrator privileges. Please switch to the Eligible Voter tab to log in.");
+              setIsLoading(false);
+              return;
+            }
+
+            store.setCurrentUser({
+              id: data.user.id,
+              email: data.user.email ?? email,
+              full_name: resolvedName,
+              role: "org_admin",
+            });
+            store.setOrganization(syncedOrg);
+            router.push("/admin");
+            return;
+          }
+
+          // If signing in as Eligible Voter
           store.setCurrentUser({
             id: data.user.id,
             email: data.user.email ?? email,
             full_name: resolvedName,
-            role,
+            role: "voter",
           });
+          store.setOrganization({ id: "", name: "Organisation Workspace", type: "General", status: "active" });
 
-          // Sync organization and session with database
-          await store.syncUserSession({
-            userId: data.user.id,
-            email: data.user.email ?? email,
-            fullName: resolvedName,
-            role,
-          });
-
-          router.push(role === "org_admin" ? "/admin" : resolveVoterRedirect());
+          router.push(resolveVoterRedirect());
           return;
         }
       }
 
       // Local session if operating without live Supabase
+      const isVoter = store.isVoterEmail(email);
+      const isRegisteredAdmin = store.isAdminEmail(email);
+
+      if (role === "org_admin" && isVoter && !isRegisteredAdmin) {
+        setError("Access denied: This account is registered as an eligible voter and does not have administrator privileges. Please switch to the Eligible Voter tab to log in.");
+        setIsLoading(false);
+        return;
+      }
+
       store.setCurrentUser({
         email,
         full_name: email.split("@")[0].replace(".", " "),

@@ -26,14 +26,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     async function initAdmin() {
       const currentUser = store.getCurrentUser();
-      // Guard: Require authenticated user with org_admin role
-      if (!currentUser.email || currentUser.role !== "org_admin") {
+      // Guard: Require authenticated user
+      if (!currentUser.email) {
         router.replace("/login?role=org_admin");
         return;
       }
+      // Guard: If authenticated user is registered as a voter, redirect to voter portal
+      if (currentUser.role === "voter") {
+        router.replace("/vote");
+        return;
+      }
+      if (currentUser.role !== "org_admin") {
+        router.replace("/login?role=org_admin");
+        return;
+      }
+
       await store.syncUserSession();
-      setOrg(store.getOrganization());
-      setUser(store.getCurrentUser());
+      const verifiedUser = store.getCurrentUser();
+      const verifiedOrg = store.getOrganization();
+
+      // Guard: Strictly verify org_admin role and confirmed organization membership
+      if (!verifiedUser.email || verifiedUser.role !== "org_admin" || !verifiedOrg?.id) {
+        router.replace(verifiedUser.role === "voter" ? "/vote" : "/login?role=org_admin");
+        return;
+      }
+
+      setOrg(verifiedOrg);
+      setUser(verifiedUser);
       setIsCheckingAuth(false);
     }
     initAdmin();

@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, elections: electionsWithCounts });
     }
 
-    // Admin / General query
+    // Admin query: Strictly require valid orgId or userId with org_admin membership
     let query = admin.from("elections").select("*").order("starts_at", { ascending: false });
 
     if (orgId && isValidUUID(orgId)) {
@@ -70,14 +70,21 @@ export async function GET(req: NextRequest) {
     } else if (userId && isValidUUID(userId)) {
       const { data: mem } = await admin
         .from("memberships")
-        .select("org_id")
+        .select("org_id, role")
         .eq("user_id", userId)
+        .eq("role", "org_admin")
         .limit(1)
         .maybeSingle();
 
       if (mem?.org_id) {
         query = query.eq("org_id", mem.org_id);
+      } else {
+        // User is not an admin: return empty list
+        return NextResponse.json({ success: true, elections: [] });
       }
+    } else {
+      // Neither orgId nor authenticated admin userId provided
+      return NextResponse.json({ success: true, elections: [] });
     }
 
     const { data: elections, error: elError } = await query;
@@ -137,31 +144,27 @@ export async function POST(req: NextRequest) {
 
     let targetOrgId = org_id;
 
-    // If org_id is not valid UUID, look up user's org or create/find default
-    if (!targetOrgId || !isValidUUID(targetOrgId)) {
-      if (userId && isValidUUID(userId)) {
-        const { data: mem } = await admin
-          .from("memberships")
-          .select("org_id")
-          .eq("user_id", userId)
-          .limit(1)
-          .maybeSingle();
-        if (mem?.org_id) targetOrgId = mem.org_id;
-      }
-    }
+    if (userId && isValidUUID(userId)) {
+      const { data: mem } = await admin
+        .from("memberships")
+        .select("org_id, role")
+        .eq("user_id", userId)
+        .eq("role", "org_admin")
+        .limit(1)
+        .maybeSingle();
 
-    if (!targetOrgId || !isValidUUID(targetOrgId)) {
-      const { data: orgs } = await admin.from("organizations").select("id").limit(1);
-      if (orgs && orgs.length > 0) {
-        targetOrgId = orgs[0].id;
-      } else {
-        const { data: newOrg } = await admin
-          .from("organizations")
-          .insert({ name: "Organisation Workspace", type: "General", status: "active" })
-          .select()
-          .single();
-        if (newOrg) targetOrgId = newOrg.id;
+      if (!mem) {
+        return NextResponse.json(
+          { error: "Unauthorized: only verified organisation administrators can create elections." },
+          { status: 403 }
+        );
       }
+      targetOrgId = mem.org_id;
+    } else if (!targetOrgId || !isValidUUID(targetOrgId)) {
+      return NextResponse.json(
+        { error: "Unauthorized: valid organisation required." },
+        { status: 403 }
+      );
     }
 
     const { data: newElection, error: insertError } = await admin

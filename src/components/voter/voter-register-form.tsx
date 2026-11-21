@@ -94,6 +94,7 @@ export function VoterRegisterForm({ onSuccess, redirectTo }: VoterRegisterFormPr
           }
 
           // 2. Sync profile into store
+          store.registerAccount({ email: trimmedEmail, role: "voter", full_name: trimmedName });
           store.setCurrentUser({
             id: data.user.id,
             email: data.user.email ?? trimmedEmail,
@@ -117,6 +118,7 @@ export function VoterRegisterForm({ onSuccess, redirectTo }: VoterRegisterFormPr
       }
 
       // Local state fallback when running without live Supabase
+      store.registerAccount({ email: trimmedEmail, role: "voter", full_name: trimmedName });
       store.setCurrentUser({
         id: `voter-${Date.now()}`,
         email: trimmedEmail,

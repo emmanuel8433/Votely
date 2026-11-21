@@ -9,23 +9,40 @@ export async function POST(req: NextRequest) {
     if (!admin) {
       return NextResponse.json({
         success: true,
-        user: { id: userId, email, full_name: fullName, role },
+        profile: { id: userId, email, full_name: fullName, role: role || "voter" },
         organization: null,
       });
     }
 
     let profile = null;
     let organization = null;
-    let userRole = role;
+    let userRole: "org_admin" | "voter" = "voter";
 
-    // 1. Ensure profile exists in profiles table
+    // 1. Fetch user metadata from Supabase Auth to determine the authoritative registered role
+    let authMetaRole: string | undefined = undefined;
+    let authEmail = email;
+    let authName = fullName;
+
+    if (userId) {
+      const { data: authUserData } = await admin.auth.admin.getUserById(userId);
+      if (authUserData?.user) {
+        authMetaRole = authUserData.user.user_metadata?.role;
+        authEmail = authUserData.user.email || email;
+        authName =
+          authUserData.user.user_metadata?.full_name ||
+          fullName ||
+          (authEmail ? authEmail.split("@")[0] : "User");
+      }
+    }
+
+    // 2. Ensure profile exists in profiles table
     if (userId) {
       const { data: prof, error: profErr } = await admin
         .from("profiles")
         .upsert(
           {
             id: userId,
-            full_name: fullName || (email ? email.split("@")[0] : "User"),
+            full_name: authName || (authEmail ? authEmail.split("@")[0] : "User"),
             is_super_admin: false,
           },
           { onConflict: "id" }
@@ -38,8 +55,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. If user is an org_admin or unspecified role, check membership
-    if (userId) {
+    // 3. Strictly verify membership in organizations
+    // If user registered as a voter, they CANNOT be an admin and have no org admin rights
+    if (authMetaRole === "voter") {
+      userRole = "voter";
+      organization = null;
+    } else if (userId) {
       const { data: mem } = await admin
         .from("memberships")
         .select("org_id, role, organizations(*)")
@@ -47,30 +68,20 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
 
-      if (mem && mem.organizations) {
-        organization = mem.organizations;
-        if (mem.role) userRole = mem.role;
-      } else if (role === "org_admin" || !role) {
-        // Look for any organization this user might belong to, or link to latest active org
-        const { data: orgs } = await admin
-          .from("organizations")
-          .select("*")
-          .eq("status", "active")
-          .order("created_at", { ascending: false })
-          .limit(1);
-
-        if (orgs && orgs.length > 0) {
-          organization = orgs[0];
-          // Auto-link membership so future queries are instant
-          await admin.from("memberships").upsert(
-            {
-              org_id: organization.id,
-              user_id: userId,
-              role: "org_admin",
-            },
-            { onConflict: "org_id,user_id" }
-          );
+      if (mem && mem.organizations && mem.role === "org_admin") {
+        const rawOrg: any = Array.isArray(mem.organizations) ? mem.organizations[0] : mem.organizations;
+        if (rawOrg) {
+          organization = {
+            id: rawOrg.id,
+            name: rawOrg.name,
+            type: rawOrg.type || "General",
+            status: rawOrg.status || "active",
+          };
+          userRole = "org_admin";
         }
+      } else {
+        userRole = "voter";
+        organization = null;
       }
     }
 
@@ -78,18 +89,12 @@ export async function POST(req: NextRequest) {
       success: true,
       profile: {
         id: userId,
-        email,
-        full_name: profile?.full_name || fullName || (email ? email.split("@")[0] : ""),
+        email: authEmail,
+        full_name: profile?.full_name || authName || (authEmail ? authEmail.split("@")[0] : ""),
         role: userRole,
       },
-      organization: organization
-        ? {
-            id: organization.id,
-            name: organization.name,
-            type: organization.type || "General",
-            status: organization.status || "active",
-          }
-        : null,
+      organization,
+      isAdmin: userRole === "org_admin",
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal Server Error";
