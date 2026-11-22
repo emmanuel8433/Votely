@@ -25,6 +25,7 @@ export default function VoterDashboardPage() {
 
   useEffect(() => {
     async function loadData() {
+      await store.initAuth();
       const activeUser = store.getCurrentUser();
       setCurrentUser(activeUser);
 

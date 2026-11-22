@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     let authMetaRole: string | undefined = undefined;
     let authEmail = email;
     let authName = fullName;
+    let isGoogleAuth = false;
 
     if (userId) {
       const { data: authUserData } = await admin.auth.admin.getUserById(userId);
@@ -30,8 +31,15 @@ export async function POST(req: NextRequest) {
         authEmail = authUserData.user.email || email;
         authName =
           authUserData.user.user_metadata?.full_name ||
+          authUserData.user.user_metadata?.name ||
           fullName ||
           (authEmail ? authEmail.split("@")[0] : "User");
+
+        const provider = authUserData.user.app_metadata?.provider;
+        const identities = authUserData.user.identities || [];
+        isGoogleAuth =
+          provider === "google" ||
+          identities.some((id: { provider?: string }) => id.provider === "google");
       }
     }
 
@@ -56,8 +64,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Strictly verify membership in organizations
-    // If user registered as a voter, they CANNOT be an admin and have no org admin rights
-    if (authMetaRole === "voter") {
+    // If user registered as a voter or authenticated with Google, they CANNOT be an admin and have no org admin rights
+    if (authMetaRole === "voter" || isGoogleAuth) {
       userRole = "voter";
       organization = null;
     } else if (userId) {

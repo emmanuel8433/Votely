@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/notification";
 import { store } from "@/lib/store";
 import { isSupabaseConfigured, supabaseClient } from "@/lib/supabase/client";
+import { GoogleAuthButton } from "@/components/ui/google-auth-button";
 import { ShieldCheck, ArrowRight, Vote, Building2 } from "lucide-react";
 
 function LoginContent() {
@@ -171,36 +172,57 @@ function LoginContent() {
 
       {error && <Alert type="error" message={error} className="mb-5" />}
 
-      <form onSubmit={handleLogin} className="space-y-4">
-        <div className="flex rounded-xl bg-ice p-1 border border-navy/10">
-          <button
-            type="button"
-            onClick={() => {
-              setRole("org_admin");
-              setError(null);
-            }}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              role === "org_admin" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
-            }`}
-          >
-            <Building2 size={13} />
-            Organisation Admin
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setRole("voter");
-              setError(null);
-            }}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              role === "voter" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
-            }`}
-          >
-            <Vote size={13} />
-            Eligible Voter
-          </button>
-        </div>
+      {/* Role Selection Tabs */}
+      <div className="flex rounded-xl bg-ice p-1 border border-navy/10 mb-5">
+        <button
+          type="button"
+          onClick={() => {
+            setRole("org_admin");
+            setError(null);
+          }}
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            role === "org_admin" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
+          }`}
+        >
+          <Building2 size={13} />
+          Organisation Admin
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setRole("voter");
+            setError(null);
+          }}
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            role === "voter" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
+          }`}
+        >
+          <Vote size={13} />
+          Eligible Voter
+        </button>
+      </div>
 
+      {/* Google Authentication: ONLY for voters */}
+      {role === "voter" && (
+        <div className="mb-4">
+          <GoogleAuthButton
+            text="Sign in with Google"
+            redirectTo={resolveVoterRedirect()}
+            onError={(msg) => setError(msg)}
+          />
+
+          <div className="relative flex items-center justify-center my-4">
+            <div className="border-t border-navy/10 w-full" />
+            <span className="bg-white px-3 text-[11px] font-semibold uppercase tracking-wider text-ink/45 shrink-0">
+              or continue with email
+            </span>
+            <div className="border-t border-navy/10 w-full" />
+          </div>
+        </div>
+      )}
+
+      {/* Manual Email Login Form (Available for both voters and admins) */}
+      <form onSubmit={handleLogin} className="space-y-4">
         <Input
           label="Email address"
           type="email"

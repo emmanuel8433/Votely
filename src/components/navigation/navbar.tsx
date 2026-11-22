@@ -24,7 +24,9 @@ export function Navbar() {
 
   useEffect(() => {
     setMounted(true);
-    setCurrentUser(store.getCurrentUser());
+    store.initAuth().then(() => {
+      setCurrentUser(store.getCurrentUser());
+    });
     setMobileMenuOpen(false);
   }, [pathname]);
 

@@ -1,11 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") || "/admin";
+  let next = searchParams.get("next") || "/vote";
+
+  // Security enforcement: Google OAuth is strictly for voters!
+  // Never allow an OAuth callback to redirect to administrator surfaces.
+  if (next.startsWith("/admin") || next === "/admin") {
+    next = "/vote";
+  }
 
   if (code) {
     const cookieStore = cookies();
@@ -27,7 +34,37 @@ export async function GET(req: NextRequest) {
           },
         },
       });
-      await supabase.auth.exchangeCodeForSession(code);
+
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+      if (!error && data?.user) {
+        // Enforce voter role for all Google/OAuth authenticated accounts
+        const admin = supabaseAdmin();
+        if (admin) {
+          const authName =
+            data.user.user_metadata?.full_name ||
+            data.user.user_metadata?.name ||
+            (data.user.email ? data.user.email.split("@")[0] : "Voter");
+
+          // 1. Authoritatively set role in auth user metadata
+          await admin.auth.admin.updateUserById(data.user.id, {
+            user_metadata: {
+              ...data.user.user_metadata,
+              role: "voter",
+            },
+          });
+
+          // 2. Ensure profile exists in profiles table with voter status
+          await admin.from("profiles").upsert(
+            {
+              id: data.user.id,
+              full_name: authName,
+              is_super_admin: false,
+            },
+            { onConflict: "id" }
+          );
+        }
+      }
     }
   }
 

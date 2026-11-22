@@ -189,6 +189,49 @@ class DataStore {
     return Boolean(this.currentUser && this.currentUser.email);
   }
 
+  async initAuth(): Promise<Profile> {
+    if (typeof window === "undefined") return this.currentUser;
+
+    if (!this.currentUser.email && isSupabaseConfigured()) {
+      try {
+        const client = supabaseClient();
+        if (client) {
+          const { data } = await client.auth.getUser();
+          const user = data?.user;
+          if (user && user.email) {
+            const authName =
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email.split("@")[0];
+            const authRole = (user.user_metadata?.role as "org_admin" | "voter") || "voter";
+
+            this.setCurrentUser({
+              id: user.id,
+              email: user.email,
+              full_name: authName,
+              role: authRole,
+            });
+            this.registerAccount({
+              email: user.email,
+              role: authRole,
+              full_name: authName,
+            });
+            await this.syncUserSession({
+              userId: user.id,
+              email: user.email,
+              fullName: authName,
+              role: authRole,
+            });
+          }
+        }
+      } catch {
+        // silent fallback to current stored state
+      }
+    }
+
+    return this.currentUser;
+  }
+
   getCurrentUser(): Profile {
     return this.currentUser;
   }

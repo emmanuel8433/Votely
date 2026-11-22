@@ -13,7 +13,7 @@ export default function VoterLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     async function initVoter() {
-      const currentUser = store.getCurrentUser();
+      const currentUser = await store.initAuth();
       // Guard: Require authenticated voter
       if (!currentUser.email) {
         router.replace("/login?role=voter");

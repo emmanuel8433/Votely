@@ -25,7 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     async function initAdmin() {
-      const currentUser = store.getCurrentUser();
+      const currentUser = await store.initAuth();
       // Guard: Require authenticated user
       if (!currentUser.email) {
         router.replace("/login?role=org_admin");

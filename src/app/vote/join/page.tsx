@@ -33,10 +33,11 @@ function JoinContent() {
     }
 
     // If the visitor is already signed in as a voter, go straight to ballot
-    const user = store.getCurrentUser();
-    if (user?.email && user?.role === "voter") {
-      router.replace(`/vote/${electionId}`);
-    }
+    store.initAuth().then((user) => {
+      if (user?.email && user?.role === "voter") {
+        router.replace(`/vote/${electionId}`);
+      }
+    });
   }, [electionId, router]);
 
   if (!electionId) {

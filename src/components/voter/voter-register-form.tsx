@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/notification";
 import { store } from "@/lib/store";
 import { isSupabaseConfigured, supabaseClient } from "@/lib/supabase/client";
+import { GoogleAuthButton } from "@/components/ui/google-auth-button";
 import { ShieldCheck, ArrowRight, CheckCircle2 } from "lucide-react";
 
 interface VoterRegisterFormProps {
@@ -138,67 +139,84 @@ export function VoterRegisterForm({ onSuccess, redirectTo }: VoterRegisterFormPr
   };
 
   return (
-    <form onSubmit={handleRegister} className="space-y-4">
+    <div className="space-y-4">
       {error && <Alert type="error" message={error} className="mb-2" />}
 
-      <Input
-        label="Full Name"
-        placeholder="e.g. Maya Lin"
-        value={fullName}
-        onChange={(e) => setFullName(e.target.value)}
-        required
+      {/* Google Sign-up: available ONLY for voters */}
+      <GoogleAuthButton
+        text="Sign up with Google"
+        redirectTo={resolveRedirect()}
+        onError={(msg) => setError(msg)}
       />
 
-      <Input
-        label="Institutional or Voter Email"
-        type="email"
-        placeholder="voter@university.edu"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        hint="Use the email address registered on your organisation's voter eligibility roster."
-        required
-      />
-
-      <Input
-        label="Student or Member ID (Optional)"
-        placeholder="e.g. STU-84920"
-        value={voterId}
-        onChange={(e) => setVoterId(e.target.value)}
-        hint="Used by election officials to verify roster eligibility."
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Input
-          label="Password"
-          type="password"
-          placeholder="Min 8 characters"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <Input
-          label="Confirm Password"
-          type="password"
-          placeholder="Re-enter password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-        />
+      <div className="relative flex items-center justify-center my-2">
+        <div className="border-t border-navy/10 w-full" />
+        <span className="bg-white px-3 text-[11px] font-semibold uppercase tracking-wider text-ink/45 shrink-0">
+          or register with email
+        </span>
+        <div className="border-t border-navy/10 w-full" />
       </div>
 
-      {/* Ballot Secrecy Assurance */}
-      <div className="rounded-2xl bg-teal-100/40 border border-teal/20 p-3 sm:p-3.5 flex items-start gap-2.5 text-xs text-navy">
-        <ShieldCheck size={18} className="text-teal-600 shrink-0 mt-0.5" />
-        <div className="leading-relaxed">
-          <span className="font-bold">Ballot Secrecy Protocol:</span> Your voter profile is used exclusively to authenticate eligibility. When voting, your ballot choices are cryptographically decoupled from your personal identity.
+      <form onSubmit={handleRegister} className="space-y-4">
+        <Input
+          label="Full Name"
+          placeholder="e.g. Maya Lin"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          required
+        />
+
+        <Input
+          label="Institutional or Voter Email"
+          type="email"
+          placeholder="voter@university.edu"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          hint="Use the email address registered on your organisation's voter eligibility roster."
+          required
+        />
+
+        <Input
+          label="Student or Member ID (Optional)"
+          placeholder="e.g. STU-84920"
+          value={voterId}
+          onChange={(e) => setVoterId(e.target.value)}
+          hint="Used by election officials to verify roster eligibility."
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Password"
+            type="password"
+            placeholder="Min 8 characters"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <Input
+            label="Confirm Password"
+            type="password"
+            placeholder="Re-enter password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
         </div>
-      </div>
 
-      <div className="pt-2">
-        <Button type="submit" isLoading={isLoading} className="w-full">
-          Create Voter Account <ArrowRight size={16} />
-        </Button>
-      </div>
-    </form>
+        {/* Ballot Secrecy Assurance */}
+        <div className="rounded-2xl bg-teal-100/40 border border-teal/20 p-3 sm:p-3.5 flex items-start gap-2.5 text-xs text-navy">
+          <ShieldCheck size={18} className="text-teal-600 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <span className="font-bold">Ballot Secrecy Protocol:</span> Your voter profile is used exclusively to authenticate eligibility. When voting, your ballot choices are cryptographically decoupled from your personal identity.
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <Button type="submit" isLoading={isLoading} className="w-full">
+            Create Voter Account <ArrowRight size={16} />
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
