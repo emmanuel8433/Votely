@@ -138,16 +138,14 @@ export default function Home() {
                           setSelectedCandidate(cand.name);
                         }
                       }}
-                      className={`flex items-start gap-2.5 sm:gap-3 rounded-2xl border-2 p-2.5 sm:p-3.5 transition-all cursor-pointer ${
-                        isSelected
+                      className={`flex items-start gap-2.5 sm:gap-3 rounded-2xl border-2 p-2.5 sm:p-3.5 transition-all cursor-pointer ${isSelected
                           ? "border-teal bg-teal-100/30 shadow-xs"
                           : "border-ice bg-white hover:bg-ice/50 hover:border-navy/15"
-                      }`}
+                        }`}
                     >
                       <span
-                        className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl text-xs sm:text-sm font-bold transition-colors ${
-                          isSelected ? "bg-teal text-white" : "bg-ice text-navy"
-                        }`}
+                        className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl text-xs sm:text-sm font-bold transition-colors ${isSelected ? "bg-teal text-white" : "bg-ice text-navy"
+                          }`}
                       >
                         {cand.initial}
                       </span>
@@ -290,7 +288,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-navy/10 bg-white py-8 text-center text-xs text-ink/60">
-        Votely Secure Voting System • Built with Next.js, Tailwind & Supabase
+        Votely Secure Voting System
       </footer>
     </div>
   );

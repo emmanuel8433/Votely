@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navigation/navbar";
@@ -10,23 +10,26 @@ import { Alert } from "@/components/ui/notification";
 import { store } from "@/lib/store";
 import { isSupabaseConfigured, supabaseClient } from "@/lib/supabase/client";
 import { GoogleAuthButton } from "@/components/ui/google-auth-button";
-import { ShieldCheck, ArrowRight, Vote, Building2 } from "lucide-react";
+import { ShieldCheck, ArrowRight, Vote, Building2, CheckCircle2 } from "lucide-react";
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = searchParams.get("role") === "voter" ? "voter" : "org_admin";
-  // Explicit redirect param takes priority; fallback: check pending election in localStorage
   const explicitRedirect = searchParams.get("redirect");
+  const authParam = searchParams.get("auth");
+  const errorParam = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"org_admin" | "voter">(initialRole);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(errorParam ? decodeURIComponent(errorParam) : null);
+  const [isOAuthSuccess, setIsOAuthSuccess] = useState(authParam === "oauth_success");
+  const [authenticatedUser, setAuthenticatedUser] = useState<string | null>(null);
 
   /** Determine where to send the user after a successful voter login */
-  const resolveVoterRedirect = (): string => {
+  const resolveVoterRedirect = useCallback((): string => {
     if (explicitRedirect) return explicitRedirect;
     try {
       const pending = localStorage.getItem("votely_pending_election");
@@ -38,7 +41,26 @@ function LoginContent() {
       // storage unavailable
     }
     return "/vote";
-  };
+  }, [explicitRedirect]);
+
+  // Handle post-OAuth landing on login page: confirm credentials, then push to dashboard
+  useEffect(() => {
+    if (authParam === "oauth_success") {
+      setIsOAuthSuccess(true);
+      const completeOAuth = async () => {
+        const user = await store.initAuth();
+        if (user?.email) {
+          setAuthenticatedUser(user.full_name || user.email);
+        }
+        const destination = resolveVoterRedirect();
+        // Give the user a brief visual confirmation on the login page before transitioning
+        setTimeout(() => {
+          router.push(destination);
+        }, 1200);
+      };
+      completeOAuth();
+    }
+  }, [authParam, router, resolveVoterRedirect]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +121,6 @@ function LoginContent() {
           // SECURITY CHECK: If attempting to sign in as Organisation Admin
           if (role === "org_admin") {
             if (registeredRole === "voter" || syncedRole !== "org_admin" || !syncedOrg) {
-              // Deny admin access: immediately terminate Supabase session and clean store
               await client.auth.signOut().catch(() => {});
               store.signOut();
               setError("Access denied: This account is registered as an eligible voter and does not have administrator privileges. Please switch to the Eligible Voter tab to log in.");
@@ -161,10 +182,16 @@ function LoginContent() {
           Votely<span className="text-teal">.</span>
         </span>
         <h1 className="mt-3 text-xl font-bold text-navy">
-          {role === "org_admin" ? "Sign in to your organisation" : "Sign in to cast your ballot"}
+          {isOAuthSuccess
+            ? "Welcome to Votely"
+            : role === "org_admin"
+            ? "Sign in to your organisation"
+            : "Sign in to cast your ballot"}
         </h1>
         <p className="mt-1 text-xs sm:text-sm text-ink/70">
-          {role === "org_admin"
+          {isOAuthSuccess
+            ? "Authentication successful! Redirecting you to your voting area..."
+            : role === "org_admin"
             ? "Access your elections dashboard and oversee results"
             : "Authenticate your voter credentials to access your ballots"}
         </p>
@@ -172,97 +199,122 @@ function LoginContent() {
 
       {error && <Alert type="error" message={error} className="mb-5" />}
 
-      {/* Role Selection Tabs */}
-      <div className="flex rounded-xl bg-ice p-1 border border-navy/10 mb-5">
-        <button
-          type="button"
-          onClick={() => {
-            setRole("org_admin");
-            setError(null);
-          }}
-          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-            role === "org_admin" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
-          }`}
-        >
-          <Building2 size={13} />
-          Organisation Admin
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setRole("voter");
-            setError(null);
-          }}
-          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-            role === "voter" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
-          }`}
-        >
-          <Vote size={13} />
-          Eligible Voter
-        </button>
-      </div>
-
-      {/* Google Authentication: ONLY for voters */}
-      {role === "voter" && (
-        <div className="mb-4">
-          <GoogleAuthButton
-            text="Sign in with Google"
-            redirectTo={resolveVoterRedirect()}
-            onError={(msg) => setError(msg)}
-          />
-
-          <div className="relative flex items-center justify-center my-4">
-            <div className="border-t border-navy/10 w-full" />
-            <span className="bg-white px-3 text-[11px] font-semibold uppercase tracking-wider text-ink/45 shrink-0">
-              or continue with email
-            </span>
-            <div className="border-t border-navy/10 w-full" />
+      {/* OAuth Success Transition State */}
+      {isOAuthSuccess ? (
+        <div className="py-4 text-center space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 animate-pulse">
+            <CheckCircle2 size={36} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-navy">Signed in successfully</h2>
+            <p className="mt-1 text-xs sm:text-sm text-ink/70">
+              {authenticatedUser ? (
+                <>Welcome back, <strong className="text-navy">{authenticatedUser}</strong>.</>
+              ) : (
+                "Google voter account verified."
+              )}
+            </p>
+          </div>
+          <div className="rounded-xl bg-ice p-3 border border-navy/10 flex items-center justify-center gap-2.5 text-xs font-semibold text-teal-700">
+            <div className="h-4 w-4 rounded-full border-2 border-teal border-t-transparent animate-spin" />
+            <span>Redirecting to your dashboard...</span>
           </div>
         </div>
+      ) : (
+        <>
+          {/* Role Selection Tabs */}
+          <div className="flex rounded-xl bg-ice p-1 border border-navy/10 mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setRole("org_admin");
+                setError(null);
+              }}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                role === "org_admin" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
+              }`}
+            >
+              <Building2 size={13} />
+              Organisation Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRole("voter");
+                setError(null);
+              }}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                role === "voter" ? "bg-white text-navy shadow-xs" : "text-ink/60 hover:text-navy"
+              }`}
+            >
+              <Vote size={13} />
+              Eligible Voter
+            </button>
+          </div>
+
+          {/* Google Authentication: ONLY for voters */}
+          {role === "voter" && (
+            <div className="mb-4">
+              <GoogleAuthButton
+                text="Sign in with Google"
+                redirectTo={resolveVoterRedirect()}
+                onError={(msg) => setError(msg)}
+              />
+
+              <div className="relative flex items-center justify-center my-4">
+                <div className="border-t border-navy/10 w-full" />
+                <span className="bg-white px-3 text-[11px] font-semibold uppercase tracking-wider text-ink/45 shrink-0">
+                  or continue with email
+                </span>
+                <div className="border-t border-navy/10 w-full" />
+              </div>
+            </div>
+          )}
+
+          {/* Manual Email Login Form (Available for both voters and admins) */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <Input
+              label="Email address"
+              type="email"
+              placeholder={role === "org_admin" ? "admin@yourorg.com" : "voter@yourorg.com"}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+
+            <Input
+              label="Password"
+              type="password"
+              placeholder="••••••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+
+            <Button type="submit" isLoading={isLoading} className="w-full mt-2">
+              Sign In <ArrowRight size={16} />
+            </Button>
+          </form>
+
+          <div className="mt-6 pt-5 border-t border-navy/10 text-center text-xs text-ink/70">
+            {role === "voter" ? (
+              <>
+                Don&apos;t have a voter account yet?{" "}
+                <Link href="/register/voter" className="font-semibold text-teal-600 hover:text-teal">
+                  Sign up as a voter
+                </Link>
+              </>
+            ) : (
+              <>
+                Don&apos;t have an organisation registered yet?{" "}
+                <Link href="/register" className="font-semibold text-teal-600 hover:text-teal">
+                  Register now
+                </Link>
+              </>
+            )}
+          </div>
+        </>
       )}
-
-      {/* Manual Email Login Form (Available for both voters and admins) */}
-      <form onSubmit={handleLogin} className="space-y-4">
-        <Input
-          label="Email address"
-          type="email"
-          placeholder={role === "org_admin" ? "admin@yourorg.com" : "voter@yourorg.com"}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        <Input
-          label="Password"
-          type="password"
-          placeholder="••••••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-
-        <Button type="submit" isLoading={isLoading} className="w-full mt-2">
-          Sign In <ArrowRight size={16} />
-        </Button>
-      </form>
-
-      <div className="mt-6 pt-5 border-t border-navy/10 text-center text-xs text-ink/70">
-        {role === "voter" ? (
-          <>
-            Don&apos;t have a voter account yet?{" "}
-            <Link href="/register/voter" className="font-semibold text-teal-600 hover:text-teal">
-              Sign up as a voter
-            </Link>
-          </>
-        ) : (
-          <>
-            Don&apos;t have an organisation registered yet?{" "}
-            <Link href="/register" className="font-semibold text-teal-600 hover:text-teal">
-              Register now
-            </Link>
-          </>
-        )}
-      </div>
     </div>
   );
 }

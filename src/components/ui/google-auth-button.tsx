@@ -46,10 +46,11 @@ export function GoogleAuthButton({
       if (isSupabaseConfigured()) {
         const client = supabaseClient();
         if (client) {
-          const origin =
+          const rawOrigin =
             typeof window !== "undefined" && window.location.origin
               ? window.location.origin
-              : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+              : process.env.NEXT_PUBLIC_APP_URL || "https://votelysystem.vercel.app";
+          const origin = rawOrigin.replace(/\/+$/, "");
 
           const callbackUrl = `${origin}/auth/callback?role=voter&next=${encodeURIComponent(
             targetPath

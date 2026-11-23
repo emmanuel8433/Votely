@@ -6,12 +6,19 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("code");
+  const authError = searchParams.get("error_description") || searchParams.get("error");
   let next = searchParams.get("next") || "/vote";
 
   // Security enforcement: Google OAuth is strictly for voters!
   // Never allow an OAuth callback to redirect to administrator surfaces.
   if (next.startsWith("/admin") || next === "/admin") {
     next = "/vote";
+  }
+
+  if (authError) {
+    return NextResponse.redirect(
+      `${origin}/login?role=voter&error=${encodeURIComponent(authError)}`
+    );
   }
 
   if (code) {
@@ -37,7 +44,13 @@ export async function GET(req: NextRequest) {
 
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-      if (!error && data?.user) {
+      if (error) {
+        return NextResponse.redirect(
+          `${origin}/login?role=voter&error=${encodeURIComponent(error.message)}`
+        );
+      }
+
+      if (data?.user) {
         // Enforce voter role for all Google/OAuth authenticated accounts
         const admin = supabaseAdmin();
         if (admin) {
@@ -68,5 +81,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  // Redirect to the login page first with oauth_success flag so the user
+  // returns to the login page, which then smoothly moves them to their dashboard
+  return NextResponse.redirect(
+    `${origin}/login?role=voter&auth=oauth_success&redirect=${encodeURIComponent(next)}`
+  );
 }
