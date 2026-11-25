@@ -52,6 +52,26 @@ export default function AdminDashboardPage() {
       setIsLoading(false);
     }
     loadData();
+
+    // Auto-update election status live when set duration elapses
+    const timer = setInterval(() => {
+      setElections((prev) => {
+        let changed = false;
+        const now = new Date();
+        const updated = prev.map((el) => {
+          const end = el.ends_at ? new Date(el.ends_at) : null;
+          if (end && !isNaN(end.getTime()) && (el.status === "active" || el.status === "scheduled") && now >= end) {
+            changed = true;
+            store.updateElection(el.id, { status: "completed" });
+            return { ...el, status: "completed" as ElectionStatus };
+          }
+          return el;
+        });
+        return changed ? updated : prev;
+      });
+    }, 5000);
+
+    return () => clearInterval(timer);
   }, []);
 
   const filteredElections = elections.filter((e) => {

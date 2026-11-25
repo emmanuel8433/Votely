@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { store } from "@/lib/store";
-import { Election } from "@/lib/types";
+import { Election, ElectionStatus } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +51,25 @@ export default function VoterDashboardPage() {
       setIsLoading(false);
     }
     loadData();
+
+    // Auto-update election status live when duration elapses
+    const timer = setInterval(() => {
+      setElections((prev) => {
+        let changed = false;
+        const now = new Date();
+        const updated = prev.map((el) => {
+          const end = el.ends_at ? new Date(el.ends_at) : null;
+          if (end && !isNaN(end.getTime()) && (el.status === "active" || el.status === "scheduled") && now >= end) {
+            changed = true;
+            return { ...el, status: "completed" as ElectionStatus };
+          }
+          return el;
+        });
+        return changed ? updated : prev;
+      });
+    }, 5000);
+
+    return () => clearInterval(timer);
   }, []);
 
   const activeElections = elections.filter((e) => e.status === "active");

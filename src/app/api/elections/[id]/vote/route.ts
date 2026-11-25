@@ -30,12 +30,23 @@ export async function POST(
       return NextResponse.json({ error: "Election not found" }, { status: 404 });
     }
 
+    const now = new Date();
+    const end = election.ends_at ? new Date(election.ends_at) : null;
+
+    // Auto-complete status if duration has elapsed
+    if (end && !isNaN(end.getTime()) && now >= end) {
+      await admin.from("elections").update({ status: "completed" }).eq("id", electionId);
+      return NextResponse.json(
+        { error: "Voting is closed: The election duration has elapsed and this election is now completed" },
+        { status: 400 }
+      );
+    }
+
     if (election.status !== "active") {
       return NextResponse.json({ error: "Voting is not open for this election" }, { status: 400 });
     }
 
-    const now = new Date();
-    if (now < new Date(election.starts_at) || now > new Date(election.ends_at)) {
+    if (now < new Date(election.starts_at) || (end && now > end)) {
       return NextResponse.json(
         { error: "Ballot rejected: outside active voting window" },
         { status: 400 }

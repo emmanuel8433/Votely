@@ -74,6 +74,24 @@ export default function BallotCastingPage() {
     loadBallot();
   }, [electionId, currentUser.email]);
 
+  // Real-time duration monitor: closes ballot casting as soon as election duration expires
+  useEffect(() => {
+    if (!election) return;
+
+    const checkDuration = () => {
+      const now = new Date();
+      const end = election.ends_at ? new Date(election.ends_at) : null;
+      if (end && !isNaN(end.getTime()) && now >= end && election.status !== "completed") {
+        setElection((prev) => (prev ? { ...prev, status: "completed" } : null));
+        store.updateElection(election.id, { status: "completed" });
+      }
+    };
+
+    checkDuration();
+    const timer = setInterval(checkDuration, 3000);
+    return () => clearInterval(timer);
+  }, [election]);
+
   const handleSelectCandidate = (positionId: string, candidateId: string) => {
     setChoices((prev) => ({
       ...prev,
@@ -178,6 +196,74 @@ export default function BallotCastingPage() {
           Your email address (<strong>{currentUser.email}</strong>) is not on the eligible voter
           roster for this election. If you believe this is an error, please contact the election
           administrator.
+        </p>
+        <div className="pt-4">
+          <Link href="/vote">
+            <Button variant="outline" size="md">
+              Back to My Elections
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if voting has ended or duration elapsed
+  const isElectionEnded =
+    election?.status === "completed" ||
+    Boolean(election?.ends_at && new Date() >= new Date(election.ends_at));
+
+  if (isElectionEnded) {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+          <Clock size={32} />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-navy">Voting Has Ended</h2>
+        <p className="text-sm text-ink/75 leading-relaxed break-words">
+          The scheduled voting duration for <strong>{election?.title}</strong> has elapsed. Voting is now officially closed and additional ballots cannot be accepted.
+        </p>
+        <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
+          <Link href={`/results/${electionId}`}>
+            <Button variant="secondary" size="md" className="w-full sm:w-auto">
+              View Certified Results
+            </Button>
+          </Link>
+          <Link href="/vote">
+            <Button variant="outline" size="md" className="w-full sm:w-auto">
+              Back to My Elections
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if election is scheduled but voting window hasn't opened yet
+  const isNotStarted =
+    election?.status === "scheduled" &&
+    Boolean(election?.starts_at && new Date() < new Date(election.starts_at));
+
+  if (isNotStarted) {
+    const formattedStartDate = election?.starts_at
+      ? new Date(election.starts_at).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+          <Clock size={32} />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-navy">Voting Has Not Started Yet</h2>
+        <p className="text-sm text-ink/70 leading-relaxed">
+          Voting for <strong>{election?.title}</strong> will officially open on{" "}
+          <strong>{formattedStartDate}</strong>. Please return once the election window begins.
         </p>
         <div className="pt-4">
           <Link href="/vote">

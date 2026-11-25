@@ -26,6 +26,22 @@ export async function GET(
       return NextResponse.json({ error: "Election not found" }, { status: 404 });
     }
 
+    // Auto-update status based on duration window
+    let currentStatus = election.status;
+    const now = new Date();
+    const start = election.starts_at ? new Date(election.starts_at) : null;
+    const end = election.ends_at ? new Date(election.ends_at) : null;
+
+    if (end && !isNaN(end.getTime())) {
+      if ((currentStatus === "active" || currentStatus === "scheduled") && now >= end) {
+        currentStatus = "completed";
+        await admin.from("elections").update({ status: "completed" }).eq("id", electionId);
+      } else if (currentStatus === "scheduled" && start && !isNaN(start.getTime()) && now >= start && now < end) {
+        currentStatus = "active";
+        await admin.from("elections").update({ status: "active" }).eq("id", electionId);
+      }
+    }
+
     // Get positions with candidates
     const { data: posData } = await admin
       .from("positions")
@@ -60,6 +76,7 @@ export async function GET(
       success: true,
       election: {
         ...election,
+        status: currentStatus,
         eligible_voters_count: vCount || 0,
         ballots_cast_count: bCount || 0,
         positions,

@@ -33,6 +33,7 @@ import {
   Link2,
   Copy,
   Check,
+  Clock,
 } from "lucide-react";
 
 export default function ElectionDetailPage() {
@@ -108,6 +109,34 @@ export default function ElectionDetailPage() {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Real-time duration monitor: automatically switches status from Active to Completed when duration elapses
+  useEffect(() => {
+    if (!election) return;
+
+    const checkDuration = async () => {
+      const now = new Date();
+      const end = election.ends_at ? new Date(election.ends_at) : null;
+      if (!end || isNaN(end.getTime())) return;
+
+      if ((election.status === "active" || election.status === "scheduled") && now >= end) {
+        setElection((prev) => (prev ? { ...prev, status: "completed" } : null));
+        await store.updateElection(election.id, { status: "completed" });
+        setFeedback("The election duration has elapsed. Status has been automatically switched to Completed.");
+      } else if (election.status === "scheduled" && election.starts_at) {
+        const start = new Date(election.starts_at);
+        if (!isNaN(start.getTime()) && now >= start && now < end) {
+          setElection((prev) => (prev ? { ...prev, status: "active" } : null));
+          await store.updateElection(election.id, { status: "active" });
+          setFeedback("The election voting window has opened. Status has been automatically switched to Active.");
+        }
+      }
+    };
+
+    checkDuration();
+    const timer = setInterval(checkDuration, 4000);
+    return () => clearInterval(timer);
+  }, [election]);
 
   // Handle Add Position
   const handleAddPosition = async (e: React.FormEvent) => {
@@ -261,6 +290,16 @@ export default function ElectionDetailPage() {
           <div className="space-y-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={election.status} />
+              {election.status === "active" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal/20 text-teal-700 px-2.5 py-0.5 text-xs font-semibold">
+                  <Clock size={12} /> Auto-completes at {endDate}
+                </span>
+              )}
+              {election.status === "completed" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-0.5 text-xs font-semibold">
+                  <CheckCircle2 size={12} /> Duration Concluded
+                </span>
+              )}
               {election.results_published && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-600">
                   <CheckCircle2 size={12} /> Results Published

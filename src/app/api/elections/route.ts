@@ -5,6 +5,30 @@ function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
 }
 
+/**
+ * Automatically transitions election status based on duration window:
+ * - If ends_at has passed and election is active or scheduled -> switches to "completed"
+ * - If starts_at has arrived and election is scheduled -> switches to "active"
+ */
+async function syncElectionDurationStatus(admin: any, el: any): Promise<string> {
+  const now = new Date();
+  let currentStatus = el.status;
+  const start = el.starts_at ? new Date(el.starts_at) : null;
+  const end = el.ends_at ? new Date(el.ends_at) : null;
+
+  if (end && !isNaN(end.getTime())) {
+    if ((currentStatus === "active" || currentStatus === "scheduled") && now >= end) {
+      currentStatus = "completed";
+      await admin.from("elections").update({ status: "completed" }).eq("id", el.id);
+    } else if (currentStatus === "scheduled" && start && !isNaN(start.getTime()) && now >= start && now < end) {
+      currentStatus = "active";
+      await admin.from("elections").update({ status: "active" }).eq("id", el.id);
+    }
+  }
+
+  return currentStatus;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -40,9 +64,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: elError.message }, { status: 500 });
       }
 
-      // Augment counts
+      // Augment counts & auto-sync duration status
       const electionsWithCounts = await Promise.all(
         (elections || []).map(async (el) => {
+          const resolvedStatus = await syncElectionDurationStatus(admin, el);
           const { count: vCount } = await admin
             .from("eligible_voters")
             .select("*", { count: "exact", head: true })
@@ -53,6 +78,7 @@ export async function GET(req: NextRequest) {
             .eq("election_id", el.id);
           return {
             ...el,
+            status: resolvedStatus,
             eligible_voters_count: vCount || 0,
             ballots_cast_count: bCount || 0,
           };
@@ -92,9 +118,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: elError.message }, { status: 500 });
     }
 
-    // Augment counts
+    // Augment counts & auto-sync duration status
     const electionsWithCounts = await Promise.all(
       (elections || []).map(async (el) => {
+        const resolvedStatus = await syncElectionDurationStatus(admin, el);
         const { count: vCount } = await admin
           .from("eligible_voters")
           .select("*", { count: "exact", head: true })
@@ -105,6 +132,7 @@ export async function GET(req: NextRequest) {
           .eq("election_id", el.id);
         return {
           ...el,
+          status: resolvedStatus,
           eligible_voters_count: vCount || 0,
           ballots_cast_count: bCount || 0,
         };

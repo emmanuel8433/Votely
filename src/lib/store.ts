@@ -45,6 +45,46 @@ const DEFAULT_USER: Profile = {
   role: undefined,
 };
 
+/**
+ * Computes the authoritative runtime status of an election based on its duration window:
+ * - If ends_at is reached/passed and status is active or scheduled -> returns "completed"
+ * - If starts_at is reached and status is scheduled and ends_at not passed -> returns "active"
+ * - Draft and cancelled elections remain unchanged
+ */
+export function resolveElectionStatus(election: {
+  status: ElectionStatus;
+  starts_at?: string;
+  ends_at?: string;
+}): ElectionStatus {
+  if (election.status === "draft" || election.status === "cancelled") {
+    return election.status;
+  }
+  if (!election.ends_at) {
+    return election.status;
+  }
+
+  const now = new Date();
+  const end = new Date(election.ends_at);
+  if (isNaN(end.getTime())) {
+    return election.status;
+  }
+
+  // Once duration has elapsed, automatically treat as completed
+  if (now >= end) {
+    return "completed";
+  }
+
+  // If scheduled and voting window has opened
+  if (election.status === "scheduled" && election.starts_at) {
+    const start = new Date(election.starts_at);
+    if (!isNaN(start.getTime()) && now >= start && now < end) {
+      return "active";
+    }
+  }
+
+  return election.status;
+}
+
 class DataStore {
   private elections: Election[] = [];
   private positions: Record<string, Position[]> = {};
@@ -415,6 +455,22 @@ class DataStore {
     }
   }
 
+  syncElectionStatuses(electionsList?: Election[]): boolean {
+    const list = electionsList || this.elections;
+    let hasChanged = false;
+    for (const el of list) {
+      const resolved = resolveElectionStatus(el);
+      if (resolved !== el.status) {
+        el.status = resolved;
+        hasChanged = true;
+      }
+    }
+    if (hasChanged && !electionsList) {
+      this.saveToStorage();
+    }
+    return hasChanged;
+  }
+
   async getElections(): Promise<Election[]> {
     // If the active session is a voter, strictly return only the elections they are invited to
     if (this.currentUser.role === "voter" && this.currentUser.email) {
@@ -434,6 +490,7 @@ class DataStore {
       if (res.ok) {
         const body = await res.json();
         if (body.elections && Array.isArray(body.elections)) {
+          this.syncElectionStatuses(body.elections);
           this.elections = body.elections;
           this.saveToStorage();
           return body.elections;
@@ -444,6 +501,7 @@ class DataStore {
     }
 
     // Local fallback
+    this.syncElectionStatuses(this.elections);
     if (this.currentUser.role === "org_admin" && this.organization.id) {
       return this.elections.filter(
         (e) => !e.org_id || e.org_id === this.organization.id
@@ -463,6 +521,7 @@ class DataStore {
       if (res.ok) {
         const body = await res.json();
         if (body.elections && Array.isArray(body.elections)) {
+          this.syncElectionStatuses(body.elections);
           return body.elections;
         }
       }
@@ -470,6 +529,7 @@ class DataStore {
       // fallback
     }
 
+    this.syncElectionStatuses(this.elections);
     return this.elections.filter((el) => {
       const roster = this.voters[el.id] || [];
       return roster.some((v) => v.email.toLowerCase() === normalised);
@@ -483,6 +543,7 @@ class DataStore {
         if (res.ok) {
           const body = await res.json();
           if (body.election) {
+            body.election.status = resolveElectionStatus(body.election);
             return body.election;
           }
         }
@@ -493,6 +554,7 @@ class DataStore {
 
     const found = this.elections.find((e) => e.id === id);
     if (!found) return null;
+    found.status = resolveElectionStatus(found);
     const positions = await this.getPositions(id);
     return { ...found, positions };
   }
@@ -852,6 +914,13 @@ class DataStore {
 
     const election = await this.getElectionById(electionId);
     if (!election) throw new Error("Election not found");
+
+    const resolvedStatus = resolveElectionStatus(election);
+    if (resolvedStatus === "completed" || election.status === "completed") {
+      election.status = "completed";
+      this.saveToStorage();
+      throw new Error("Voting is closed: The election duration has elapsed and this election is now completed.");
+    }
     if (election.status !== "active") throw new Error("Voting is not open for this election");
 
     const now = new Date();

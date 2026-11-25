@@ -26,6 +26,15 @@ export async function GET(
       return NextResponse.json({ error: "Election not found" }, { status: 404 });
     }
 
+    // Auto-update status if duration has elapsed
+    let currentStatus = election.status;
+    const now = new Date();
+    const end = election.ends_at ? new Date(election.ends_at) : null;
+    if (end && !isNaN(end.getTime()) && (currentStatus === "active" || currentStatus === "scheduled") && now >= end) {
+      currentStatus = "completed";
+      await admin.from("elections").update({ status: "completed" }).eq("id", electionId);
+    }
+
     // Get positions & candidates
     const { data: posData } = await admin
       .from("positions")
@@ -134,7 +143,7 @@ export async function GET(
         election_title: election.title,
         starts_at: election.starts_at,
         ends_at: election.ends_at,
-        status: election.status,
+        status: currentStatus,
         results_published: election.results_published,
         total_eligible_voters,
         total_ballots_cast,
