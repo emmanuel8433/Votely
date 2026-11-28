@@ -21,7 +21,7 @@ interface GoogleAuthButtonProps {
 }
 
 export function GoogleAuthButton({
-  text = "Continue with Google",
+  text = "Sign in with Google",
   redirectTo,
   onError,
   className = "",
@@ -147,14 +147,18 @@ export function GoogleAuthButton({
         if (googleBtnContainerRef.current) {
           googleBtnContainerRef.current.innerHTML = "";
 
-          const containerWidth = googleBtnContainerRef.current.offsetWidth || 340;
-          const buttonWidth = Math.min(Math.max(containerWidth, 240), 400);
+          const containerWidth = googleBtnContainerRef.current.clientWidth || 320;
+          // Constrain width to 320px max so it fits comfortably inside the form card without spilling
+          const buttonWidth = Math.min(Math.max(containerWidth, 200), 320);
+
+          // Force 'signin_with' or 'signup_with' to render a standard single-line button and disable the personalized email card
+          const buttonTextType = text.toLowerCase().includes("sign up") ? "signup_with" : "signin_with";
 
           window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
             type: "standard",
             theme: "outline",
             size: "large",
-            text: text.toLowerCase().includes("sign up") ? "signup_with" : "continue_with",
+            text: buttonTextType,
             shape: "rectangular",
             logo_alignment: "left",
             width: buttonWidth,
@@ -250,12 +254,13 @@ export function GoogleAuthButton({
   };
 
   return (
-    <div className={`w-full flex flex-col items-center justify-center min-h-[44px] ${className}`}>
-      {/* Native Google Identity Services Button: Prompts on votelysystem.vercel.app */}
+    <div className={`w-full max-w-full flex flex-col items-center justify-center overflow-hidden min-h-[44px] ${className}`}>
+      {/* Native Google Identity Services Button: Standard single-line button on votelysystem.vercel.app */}
       <div
         ref={googleBtnContainerRef}
-        className={`w-full flex justify-center items-center [&_iframe]:!mx-auto ${isGisReady ? "block" : "hidden"
-          }`}
+        className={`w-full max-w-full flex justify-center items-center overflow-hidden [&>div]:!max-w-full [&_iframe]:!max-w-full [&_iframe]:!mx-auto ${
+          isGisReady ? "block" : "hidden"
+        }`}
       />
 
       {/* Styled Fallback / Loading Button when GIS is initializing or offline */}
@@ -264,7 +269,7 @@ export function GoogleAuthButton({
           type="button"
           onClick={handleGoogleAuth}
           disabled={disabled || isLoading}
-          className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-navy/15 bg-white text-navy font-semibold text-sm hover:bg-slate-50 active:bg-slate-100 transition-all shadow-2xs hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full max-w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-navy/15 bg-white text-navy font-semibold text-sm hover:bg-slate-50 active:bg-slate-100 transition-all shadow-2xs hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isLoading ? (
             <div className="h-4 w-4 rounded-full border-2 border-teal border-t-transparent animate-spin shrink-0" />
