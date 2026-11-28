@@ -1,78 +1,90 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/auth/server-auth";
+import { checkRateLimit, rateLimitExceededResponse } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, email, fullName, role } = await req.json();
+    const rateLimit = checkRateLimit(req, { limit: 40, windowMs: 60000, keyPrefix: "auth-sync" });
+    if (!rateLimit.success) {
+      return rateLimitExceededResponse(rateLimit);
+    }
+
+    const { userId, email, fullName } = await req.json();
 
     const admin = supabaseAdmin();
     if (!admin) {
       return NextResponse.json({
         success: true,
-        profile: { id: userId, email, full_name: fullName, role: role || "voter" },
+        profile: { id: userId, email, full_name: fullName, role: "voter" },
         organization: null,
       });
+    }
+
+    // 1. Authenticate caller to prevent session impersonation
+    const { user: sessionUser } = await getAuthenticatedUser(req);
+    const effectiveUserId = sessionUser?.id || userId;
+    const effectiveEmail = sessionUser?.email || email;
+
+    if (!effectiveUserId) {
+      return NextResponse.json({ error: "No user specified" }, { status: 400 });
     }
 
     let profile = null;
     let organization = null;
     let userRole: "org_admin" | "voter" = "voter";
 
-    // 1. Fetch user metadata from Supabase Auth to determine the authoritative registered role
+    // 2. Fetch user metadata authoritatively from Supabase Auth (ignore any caller-supplied role)
     let authMetaRole: string | undefined = undefined;
-    let authEmail = email;
+    let authEmail = effectiveEmail;
     let authName = fullName;
     let isGoogleAuth = false;
 
-    if (userId) {
-      const { data: authUserData } = await admin.auth.admin.getUserById(userId);
-      if (authUserData?.user) {
-        authMetaRole = authUserData.user.user_metadata?.role;
-        authEmail = authUserData.user.email || email;
-        authName =
-          authUserData.user.user_metadata?.full_name ||
-          authUserData.user.user_metadata?.name ||
-          fullName ||
-          (authEmail ? authEmail.split("@")[0] : "User");
+    const { data: authUserData } = await admin.auth.admin.getUserById(effectiveUserId);
+    if (authUserData?.user) {
+      authMetaRole = authUserData.user.user_metadata?.role;
+      authEmail = authUserData.user.email || effectiveEmail;
+      authName =
+        authUserData.user.user_metadata?.full_name ||
+        authUserData.user.user_metadata?.name ||
+        fullName ||
+        (authEmail ? authEmail.split("@")[0] : "User");
 
-        const provider = authUserData.user.app_metadata?.provider;
-        const identities = authUserData.user.identities || [];
-        isGoogleAuth =
-          provider === "google" ||
-          identities.some((id: { provider?: string }) => id.provider === "google");
-      }
+      const provider = authUserData.user.app_metadata?.provider;
+      const identities = authUserData.user.identities || [];
+      isGoogleAuth =
+        provider === "google" ||
+        identities.some((id: { provider?: string }) => id.provider === "google");
     }
 
-    // 2. Ensure profile exists in profiles table
-    if (userId) {
-      const { data: prof, error: profErr } = await admin
-        .from("profiles")
-        .upsert(
-          {
-            id: userId,
-            full_name: authName || (authEmail ? authEmail.split("@")[0] : "User"),
-            is_super_admin: false,
-          },
-          { onConflict: "id" }
-        )
-        .select()
-        .single();
+    // 3. Ensure profile exists in profiles table
+    const { data: prof, error: profErr } = await admin
+      .from("profiles")
+      .upsert(
+        {
+          id: effectiveUserId,
+          full_name: authName || (authEmail ? authEmail.split("@")[0] : "User"),
+          is_super_admin: false,
+        },
+        { onConflict: "id" }
+      )
+      .select()
+      .single();
 
-      if (!profErr && prof) {
-        profile = prof;
-      }
+    if (!profErr && prof) {
+      profile = prof;
     }
 
-    // 3. Strictly verify membership in organizations
-    // If user registered as a voter or authenticated with Google, they CANNOT be an admin and have no org admin rights
+    // 4. Authoritatively verify membership in organizations
+    // If user registered as a voter or authenticated with Google, they cannot be an admin
     if (authMetaRole === "voter" || isGoogleAuth) {
       userRole = "voter";
       organization = null;
-    } else if (userId) {
+    } else {
       const { data: mem } = await admin
         .from("memberships")
         .select("org_id, role, organizations(*)")
-        .eq("user_id", userId)
+        .eq("user_id", effectiveUserId)
         .limit(1)
         .maybeSingle();
 
@@ -96,7 +108,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       profile: {
-        id: userId,
+        id: effectiveUserId,
         email: authEmail,
         full_name: profile?.full_name || authName || (authEmail ? authEmail.split("@")[0] : ""),
         role: userRole,

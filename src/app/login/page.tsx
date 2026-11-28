@@ -27,6 +27,17 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(errorParam ? decodeURIComponent(errorParam) : null);
   const [isOAuthSuccess, setIsOAuthSuccess] = useState(authParam === "oauth_success");
   const [authenticatedUser, setAuthenticatedUser] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+
+  // Lockout countdown timer
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSeconds]);
 
   /** Determine where to send the user after a successful voter login */
   const resolveVoterRedirect = useCallback((): string => {
@@ -64,6 +75,10 @@ function LoginContent() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutSeconds > 0) {
+      setError(`Too many failed attempts. Login is temporarily locked. Please wait ${lockoutSeconds} seconds.`);
+      return;
+    }
     if (!email || !email.includes("@")) {
       setError("Please provide a valid email address.");
       return;
@@ -128,6 +143,8 @@ function LoginContent() {
               return;
             }
 
+            setFailedAttempts(0);
+            setLockoutSeconds(0);
             store.setCurrentUser({
               id: data.user.id,
               email: data.user.email ?? email,
@@ -140,6 +157,8 @@ function LoginContent() {
           }
 
           // If signing in as Eligible Voter
+          setFailedAttempts(0);
+          setLockoutSeconds(0);
           store.setCurrentUser({
             id: data.user.id,
             email: data.user.email ?? email,
@@ -163,6 +182,8 @@ function LoginContent() {
         return;
       }
 
+      setFailedAttempts(0);
+      setLockoutSeconds(0);
       store.setCurrentUser({
         email,
         full_name: email.split("@")[0].replace(".", " "),
@@ -170,7 +191,16 @@ function LoginContent() {
       });
       router.push(role === "org_admin" ? "/admin" : resolveVoterRedirect());
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      const nextFailures = failedAttempts + 1;
+      setFailedAttempts(nextFailures);
+      if (nextFailures >= 5) {
+        setLockoutSeconds(60);
+        setError("Account temporarily locked for 60 seconds due to 5 consecutive failed login attempts.");
+      } else {
+        const remainingTries = 5 - nextFailures;
+        const msg = err instanceof Error ? err.message : "Authentication failed";
+        setError(`${msg} (${remainingTries} attempt${remainingTries === 1 ? "" : "s"} remaining before temporary lockout).`);
+      }
       setIsLoading(false);
     }
   };
@@ -291,8 +321,19 @@ function LoginContent() {
               required
             />
 
-            <Button type="submit" isLoading={isLoading} className="w-full mt-2">
-              Sign In <ArrowRight size={16} />
+            <Button
+              type="submit"
+              isLoading={isLoading}
+              disabled={lockoutSeconds > 0}
+              className="w-full mt-2"
+            >
+              {lockoutSeconds > 0 ? (
+                `Locked (${lockoutSeconds}s)`
+              ) : (
+                <>
+                  Sign In <ArrowRight size={16} />
+                </>
+              )}
             </Button>
           </form>
 

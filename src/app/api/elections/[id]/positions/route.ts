@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { verifyOrgAdmin } from "@/lib/auth/server-auth";
 
 function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
@@ -61,6 +62,26 @@ export async function POST(
       });
     }
 
+    // 1. Fetch election org_id
+    const { data: election, error: elErr } = await admin
+      .from("elections")
+      .select("org_id")
+      .eq("id", electionId)
+      .single();
+
+    if (elErr || !election) {
+      return NextResponse.json({ error: "Election not found" }, { status: 404 });
+    }
+
+    // 2. Strict authorization: Caller must be org_admin of this election's organization
+    const { user, error: adminErr } = await verifyOrgAdmin(req, election.org_id);
+    if (!user || adminErr) {
+      return NextResponse.json(
+        { error: adminErr || "Forbidden: Only organisation administrators can add positions." },
+        { status: 403 }
+      );
+    }
+
     const { data: newPos, error } = await admin
       .from("positions")
       .insert({ election_id: electionId, title })
@@ -86,12 +107,33 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const electionId = params.id;
     const { searchParams } = new URL(req.url);
     const posId = searchParams.get("posId");
 
     const admin = supabaseAdmin();
     if (!admin || !posId || !isValidUUID(posId)) {
       return NextResponse.json({ success: true });
+    }
+
+    // 1. Fetch election org_id
+    const { data: election, error: elErr } = await admin
+      .from("elections")
+      .select("org_id")
+      .eq("id", electionId)
+      .single();
+
+    if (elErr || !election) {
+      return NextResponse.json({ error: "Election not found" }, { status: 404 });
+    }
+
+    // 2. Strict authorization: Caller must be org_admin of this election's organization
+    const { user, error: adminErr } = await verifyOrgAdmin(req, election.org_id);
+    if (!user || adminErr) {
+      return NextResponse.json(
+        { error: adminErr || "Forbidden: Only organisation administrators can delete positions." },
+        { status: 403 }
+      );
     }
 
     const { error } = await admin.from("positions").delete().eq("id", posId);

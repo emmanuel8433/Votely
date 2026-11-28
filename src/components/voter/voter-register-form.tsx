@@ -8,6 +8,7 @@ import { Alert } from "@/components/ui/notification";
 import { store } from "@/lib/store";
 import { isSupabaseConfigured, supabaseClient } from "@/lib/supabase/client";
 import { GoogleAuthButton } from "@/components/ui/google-auth-button";
+import { isValidEmail } from "@/lib/security/validation";
 import { ShieldCheck, ArrowRight, CheckCircle2 } from "lucide-react";
 
 interface VoterRegisterFormProps {
@@ -52,8 +53,8 @@ export function VoterRegisterForm({ onSuccess, redirectTo }: VoterRegisterFormPr
       return;
     }
 
-    if (!trimmedEmail || !trimmedEmail.includes("@")) {
-      setError("Please provide a valid email address.");
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Please provide a valid, well-formed email address (e.g. name@domain.com).");
       return;
     }
 

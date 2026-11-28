@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { verifyOrgAdmin } from "@/lib/auth/server-auth";
 
 function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
@@ -101,6 +102,26 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid election id" }, { status: 400 });
     }
 
+    // 1. Fetch election to verify ownership organization
+    const { data: existing, error: findErr } = await admin
+      .from("elections")
+      .select("org_id")
+      .eq("id", electionId)
+      .single();
+
+    if (findErr || !existing) {
+      return NextResponse.json({ error: "Election not found" }, { status: 404 });
+    }
+
+    // 2. Strict authorization: Caller must be org_admin of this election's organization
+    const { user, error: adminErr } = await verifyOrgAdmin(req, existing.org_id);
+    if (!user || adminErr) {
+      return NextResponse.json(
+        { error: adminErr || "Forbidden: You do not have permission to modify this election." },
+        { status: 403 }
+      );
+    }
+
     // Filter allowed update fields
     const safeUpdates: Record<string, unknown> = {};
     if (updates.title !== undefined) safeUpdates.title = updates.title;
@@ -137,6 +158,26 @@ export async function DELETE(
     const admin = supabaseAdmin();
     if (!admin || !isValidUUID(electionId)) {
       return NextResponse.json({ error: "Invalid election id" }, { status: 400 });
+    }
+
+    // 1. Fetch election to verify ownership organization
+    const { data: existing, error: findErr } = await admin
+      .from("elections")
+      .select("org_id")
+      .eq("id", electionId)
+      .single();
+
+    if (findErr || !existing) {
+      return NextResponse.json({ error: "Election not found" }, { status: 404 });
+    }
+
+    // 2. Strict authorization: Caller must be org_admin of this election's organization
+    const { user, error: adminErr } = await verifyOrgAdmin(req, existing.org_id);
+    if (!user || adminErr) {
+      return NextResponse.json(
+        { error: adminErr || "Forbidden: You do not have permission to delete this election." },
+        { status: 403 }
+      );
     }
 
     const { error: delErr } = await admin.from("elections").delete().eq("id", electionId);

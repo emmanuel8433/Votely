@@ -11,6 +11,7 @@ import {
   Profile,
 } from "./types";
 import { isSupabaseConfigured, supabaseClient } from "./supabase/client";
+import { isValidEmail } from "./security/validation";
 
 function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
@@ -95,6 +96,27 @@ class DataStore {
   private accounts: LocalAccount[] = [];
   private isMigrating = false;
 
+  async getAuthHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(extra || {}),
+    };
+    if (typeof window !== "undefined" && isSupabaseConfigured()) {
+      try {
+        const client = supabaseClient();
+        if (client) {
+          const { data } = await client.auth.getSession();
+          if (data?.session?.access_token) {
+            headers["Authorization"] = `Bearer ${data.session.access_token}`;
+          }
+        }
+      } catch {
+        // Fallback to cookies
+      }
+    }
+    return headers;
+  }
+
   constructor() {
     if (typeof window !== "undefined") {
       this.loadFromStorage();
@@ -169,7 +191,12 @@ class DataStore {
           parsed.email !== "voter@apex.edu" &&
           parsed.email !== "admin@organisation.org"
         ) {
-          this.currentUser = parsed;
+          // If Supabase is configured, do not treat client localStorage role as authoritative
+          // Wait for initAuth() / syncUserSession() to verify against backend session
+          this.currentUser = {
+            ...parsed,
+            role: isSupabaseConfigured() ? undefined : parsed.role,
+          };
         } else {
           this.currentUser = { ...DEFAULT_USER };
         }
@@ -331,7 +358,7 @@ class DataStore {
     try {
       const res = await fetch("/api/auth/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ userId, email, fullName, role }),
       });
 
@@ -381,7 +408,7 @@ class DataStore {
       for (const localEl of localOnlyElections) {
         const res = await fetch("/api/elections", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await this.getAuthHeaders(),
           body: JSON.stringify({
             title: localEl.title,
             description: localEl.description,
@@ -402,7 +429,7 @@ class DataStore {
             for (const p of localPositions) {
               const posRes = await fetch(`/api/elections/${cloudEl.id}/positions`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: await this.getAuthHeaders(),
                 body: JSON.stringify({ title: p.title }),
               });
               if (posRes.ok) {
@@ -411,7 +438,7 @@ class DataStore {
                 for (const c of p.candidates || []) {
                   await fetch(`/api/elections/${cloudEl.id}/candidates`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: await this.getAuthHeaders(),
                     body: JSON.stringify({
                       position_id: cloudPos.id,
                       full_name: c.full_name,
@@ -428,7 +455,7 @@ class DataStore {
             if (localVoters.length > 0) {
               await fetch(`/api/elections/${cloudEl.id}/voters`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: await this.getAuthHeaders(),
                 body: JSON.stringify({
                   voters: localVoters.map((v) => ({
                     email: v.email,
@@ -486,7 +513,7 @@ class DataStore {
       }
 
       const url = `/api/elections${params.toString() ? `?${params.toString()}` : ""}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: await this.getAuthHeaders() });
       if (res.ok) {
         const body = await res.json();
         if (body.elections && Array.isArray(body.elections)) {
@@ -517,7 +544,9 @@ class DataStore {
     const normalised = email.toLowerCase().trim();
 
     try {
-      const res = await fetch(`/api/elections?voterEmail=${encodeURIComponent(normalised)}`);
+      const res = await fetch(`/api/elections?voterEmail=${encodeURIComponent(normalised)}`, {
+        headers: await this.getAuthHeaders(),
+      });
       if (res.ok) {
         const body = await res.json();
         if (body.elections && Array.isArray(body.elections)) {
@@ -539,7 +568,9 @@ class DataStore {
   async getElectionById(id: string): Promise<Election | null> {
     if (isValidUUID(id)) {
       try {
-        const res = await fetch(`/api/elections/${id}`);
+        const res = await fetch(`/api/elections/${id}`, {
+          headers: await this.getAuthHeaders(),
+        });
         if (res.ok) {
           const body = await res.json();
           if (body.election) {
@@ -569,7 +600,7 @@ class DataStore {
     try {
       const res = await fetch("/api/elections", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           title: data.title,
           description: data.description,
@@ -624,7 +655,7 @@ class DataStore {
       try {
         const res = await fetch(`/api/elections/${id}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: await this.getAuthHeaders(),
           body: JSON.stringify(updates),
         });
         if (res.ok) {
@@ -655,7 +686,9 @@ class DataStore {
   async getPositions(electionId: string): Promise<Position[]> {
     if (isValidUUID(electionId)) {
       try {
-        const res = await fetch(`/api/elections/${electionId}/positions`);
+        const res = await fetch(`/api/elections/${electionId}/positions`, {
+          headers: await this.getAuthHeaders(),
+        });
         if (res.ok) {
           const body = await res.json();
           if (body.positions) {
@@ -676,7 +709,7 @@ class DataStore {
       try {
         const res = await fetch(`/api/elections/${electionId}/positions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await this.getAuthHeaders(),
           body: JSON.stringify({ title }),
         });
         if (res.ok) {
@@ -710,6 +743,7 @@ class DataStore {
       try {
         await fetch(`/api/elections/${electionId}/positions?posId=${positionId}`, {
           method: "DELETE",
+          headers: await this.getAuthHeaders(),
         });
       } catch {
         // fallback
@@ -730,7 +764,7 @@ class DataStore {
       try {
         const res = await fetch(`/api/elections/${electionId}/candidates`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await this.getAuthHeaders(),
           body: JSON.stringify({
             position_id: positionId,
             full_name: candidate.full_name,
@@ -780,6 +814,7 @@ class DataStore {
       try {
         await fetch(`/api/elections/${electionId}/candidates?candidateId=${candidateId}`, {
           method: "DELETE",
+          headers: await this.getAuthHeaders(),
         });
       } catch {
         // fallback
@@ -796,7 +831,9 @@ class DataStore {
   async getVoters(electionId: string): Promise<EligibleVoter[]> {
     if (isValidUUID(electionId)) {
       try {
-        const res = await fetch(`/api/elections/${electionId}/voters`);
+        const res = await fetch(`/api/elections/${electionId}/voters`, {
+          headers: await this.getAuthHeaders(),
+        });
         if (res.ok) {
           const body = await res.json();
           if (body.voters) {
@@ -818,10 +855,14 @@ class DataStore {
   ): Promise<EligibleVoter> {
     const cleanEmail = voter.email.toLowerCase().trim();
 
+    if (!isValidEmail(cleanEmail)) {
+      throw new Error("Please provide a valid, well-formed email address (e.g. name@domain.com)");
+    }
+
     if (isValidUUID(electionId)) {
       const res = await fetch(`/api/elections/${electionId}/voters`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ email: cleanEmail, full_name: voter.full_name }),
       });
       if (res.ok) {
@@ -866,7 +907,7 @@ class DataStore {
       try {
         const res = await fetch(`/api/elections/${electionId}/voters`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await this.getAuthHeaders(),
           body: JSON.stringify({ voters: list }),
         });
         if (res.ok) {
@@ -882,6 +923,10 @@ class DataStore {
     let added = 0;
     let skipped = 0;
     for (const item of list) {
+      if (!item.email || !isValidEmail(item.email)) {
+        skipped++;
+        continue;
+      }
       try {
         await this.addVoter(electionId, item);
         added++;
@@ -900,7 +945,7 @@ class DataStore {
     if (isValidUUID(electionId)) {
       const res = await fetch(`/api/elections/${electionId}/vote`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({ voterEmail, choices }),
       });
       if (res.ok) {
@@ -951,14 +996,21 @@ class DataStore {
 
     this.saveToStorage();
 
-    const receipt_code = `VOTE-${electionId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const randomBytes = new Uint8Array(8);
+    if (typeof window !== "undefined" && window.crypto) {
+      window.crypto.getRandomValues(randomBytes);
+    }
+    const randomHex = Array.from(randomBytes).map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+    const receipt_code = `VOTE-${electionId.slice(-4).toUpperCase()}-${randomHex || Date.now().toString(36).toUpperCase()}`;
     return { success: true, receipt_code };
   }
 
   async getElectionResults(electionId: string): Promise<ElectionResultsData> {
     if (isValidUUID(electionId)) {
       try {
-        const res = await fetch(`/api/elections/${electionId}/results`);
+        const res = await fetch(`/api/elections/${electionId}/results`, {
+          headers: await this.getAuthHeaders(),
+        });
         if (res.ok) {
           const body = await res.json();
           if (body.results) {

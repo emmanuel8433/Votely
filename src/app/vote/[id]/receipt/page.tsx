@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { store } from "@/lib/store";
 import { Election } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { supabaseClient } from "@/lib/supabase/client";
 import {
   CheckCircle2,
   ShieldCheck,
@@ -14,6 +15,9 @@ import {
   Printer,
   Vote,
   BarChart3,
+  AlertCircle,
+  Loader2,
+  LogIn,
 } from "lucide-react";
 
 function ReceiptContent() {
@@ -25,18 +29,162 @@ function ReceiptContent() {
   const [election, setElection] = useState<Election | null>(null);
   const [receiptCode, setReceiptCode] = useState<string>("");
   const [timestamp, setTimestamp] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    async function load() {
-      const el = await store.getElectionById(electionId);
-      setElection(el);
-      setReceiptCode(
-        codeParam || `VOTE-${electionId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-      );
-      setTimestamp(new Date().toLocaleString());
+    async function verifyAndLoadReceipt() {
+      try {
+        setIsLoading(true);
+        setErrorMessage(null);
+        setAuthRequired(false);
+
+        // 1. Load election data
+        const el = await store.getElectionById(electionId);
+        if (!el) {
+          setErrorMessage("Election not found or invalid election ID.");
+          setIsLoading(false);
+          return;
+        }
+        setElection(el);
+
+        // 2. Resolve authenticated user identity
+        let email: string | null = null;
+        const supabase = supabaseClient();
+        if (supabase) {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          email = session?.user?.email || null;
+        }
+        if (!email) {
+          const localUser = store.getCurrentUser();
+          email = localUser?.email || null;
+        }
+
+        if (!email) {
+          setAuthRequired(true);
+          setIsLoading(false);
+          return;
+        }
+
+        // 3. Verify voter participation in this election
+        const voters = await store.getVoters(electionId);
+        const currentVoter = voters.find(
+          (v) => v.email.toLowerCase().trim() === email?.toLowerCase().trim()
+        );
+
+        if (!currentVoter || !currentVoter.voted) {
+          setHasVoted(false);
+          setIsLoading(false);
+          return;
+        }
+
+        setHasVoted(true);
+
+        // 4. Secure receipt code verification: format validation without fabricating fake random numbers
+        const cleanCode = codeParam ? codeParam.trim() : "";
+        const isValidCode = /^VOTE-[A-Z0-9]{4}-[A-F0-9]{8,16}$/i.test(cleanCode);
+
+        if (isValidCode) {
+          setReceiptCode(cleanCode);
+        } else {
+          setReceiptCode(`VOTE-${electionId.slice(-4).toUpperCase()}-CONFIRMED`);
+        }
+
+        setTimestamp(new Date().toLocaleString());
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : "Failed to verify ballot receipt");
+      } finally {
+        setIsLoading(false);
+      }
     }
-    load();
+
+    verifyAndLoadReceipt();
   }, [electionId, codeParam]);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-md mx-auto bg-white rounded-3xl p-10 border border-navy/10 shadow-xl text-center space-y-3">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-teal" />
+        <p className="text-sm font-medium text-navy">Verifying ballot receipt status...</p>
+      </div>
+    );
+  }
+
+  if (authRequired) {
+    return (
+      <div className="max-w-md mx-auto bg-white rounded-3xl p-8 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-600">
+          <LogIn size={28} />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-navy">Authentication Required</h2>
+        <p className="text-sm text-ink/75 leading-relaxed">
+          Please log in to verify and access your official ballot receipt.
+        </p>
+        <div className="pt-2">
+          <Link
+            href={`/login?role=voter&redirect=${encodeURIComponent(
+              `/vote/${electionId}/receipt${codeParam ? `?code=${codeParam}` : ""}`
+            )}`}
+          >
+            <Button size="md" className="w-full">
+              Sign In to View Receipt <ArrowRight size={16} />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="max-w-md mx-auto bg-white rounded-3xl p-8 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+          <AlertCircle size={28} />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-navy">Unable to Load Receipt</h2>
+        <p className="text-sm text-ink/75 leading-relaxed">{errorMessage}</p>
+        <div className="pt-2">
+          <Link href="/vote">
+            <Button variant="outline" size="md">
+              Return to Elections
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasVoted) {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-3xl p-8 sm:p-10 border border-navy/10 shadow-xl text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-600">
+          <AlertCircle size={28} />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-navy">No Ballot Record Found</h2>
+        <p className="text-sm text-ink/75 leading-relaxed">
+          Our records show that you have not yet cast a ballot in{" "}
+          <strong>{election?.title || "this election"}</strong>. Receipts are only generated after an
+          official ballot is cast.
+        </p>
+        <div className="pt-3 flex flex-col sm:flex-row gap-3 justify-center">
+          <Link href={`/vote/${electionId}`}>
+            <Button size="md" className="w-full sm:w-auto">
+              <Vote size={15} /> Cast Your Ballot
+            </Button>
+          </Link>
+          <Link href="/vote">
+            <Button variant="outline" size="md" className="w-full sm:w-auto">
+              Back to Elections
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto space-y-6">

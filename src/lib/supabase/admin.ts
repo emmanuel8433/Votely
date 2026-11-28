@@ -1,6 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-export function supabaseAdmin() {
+let adminClientInstance: SupabaseClient | null = null;
+
+/**
+ * Returns a cached singleton Supabase admin client using the service role key.
+ * Avoids creating a new client on every API call, preserving connection pools.
+ */
+export function supabaseAdmin(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -8,10 +14,14 @@ export function supabaseAdmin() {
     return null;
   }
 
-  return createClient(url, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  if (!adminClientInstance) {
+    adminClientInstance = createClient(url, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+
+  return adminClientInstance;
 }

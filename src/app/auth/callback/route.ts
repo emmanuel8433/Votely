@@ -3,17 +3,30 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+function sanitizeRedirect(target: string | null): string {
+  if (!target) return "/vote";
+  const trimmed = target.trim();
+  // Must begin with a single '/' and not '//' (protocol-relative URL)
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return "/vote";
+  }
+  // Disallow schemes (http:, https:, javascript:, data:) or backslashes
+  if (trimmed.includes("://") || trimmed.includes("\\")) {
+    return "/vote";
+  }
+  // Security enforcement: Google OAuth is strictly for voters!
+  // Never allow an OAuth callback to redirect to administrator surfaces.
+  if (trimmed === "/admin" || trimmed.startsWith("/admin/")) {
+    return "/vote";
+  }
+  return trimmed;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("code");
   const authError = searchParams.get("error_description") || searchParams.get("error");
-  let next = searchParams.get("next") || "/vote";
-
-  // Security enforcement: Google OAuth is strictly for voters!
-  // Never allow an OAuth callback to redirect to administrator surfaces.
-  if (next.startsWith("/admin") || next === "/admin") {
-    next = "/vote";
-  }
+  const next = sanitizeRedirect(searchParams.get("next"));
 
   if (authError) {
     return NextResponse.redirect(

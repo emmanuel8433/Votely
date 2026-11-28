@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getAuthenticatedUser, verifyOrgAdmin } from "@/lib/auth/server-auth";
+import { isValidEmail } from "@/lib/security/validation";
+import { checkRateLimit, rateLimitExceededResponse } from "@/lib/security/rate-limit";
 
 function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
@@ -16,11 +19,43 @@ export async function GET(
       return NextResponse.json({ success: true, voters: [] });
     }
 
-    const { data: vList, error: vErr } = await admin
-      .from("eligible_voters")
-      .select("*")
-      .eq("election_id", electionId);
+    // 1. Authenticate caller
+    const { user, error: authError } = await getAuthenticatedUser(req);
+    if (!user || authError) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
 
+    // 2. Fetch election to check org
+    const { data: election, error: elErr } = await admin
+      .from("elections")
+      .select("org_id")
+      .eq("id", electionId)
+      .single();
+
+    if (elErr || !election) {
+      return NextResponse.json({ error: "Election not found" }, { status: 404 });
+    }
+
+    // 3. Determine if caller is an org admin for this election
+    const { data: adminMem } = await admin
+      .from("memberships")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("org_id", election.org_id)
+      .eq("role", "org_admin")
+      .limit(1)
+      .maybeSingle();
+
+    const isOrgAdmin = Boolean(adminMem);
+
+    // If org admin -> return full roster; if voter -> return ONLY their own record
+    let query = admin.from("eligible_voters").select("*").eq("election_id", electionId);
+    if (!isOrgAdmin) {
+      const userEmail = (user.email || "").toLowerCase().trim();
+      query = query.eq("email", userEmail);
+    }
+
+    const { data: vList, error: vErr } = await query;
     if (vErr) {
       return NextResponse.json({ error: vErr.message }, { status: 500 });
     }
@@ -53,6 +88,12 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Rate limiting for voter management
+    const rateLimit = checkRateLimit(req, { limit: 30, windowMs: 60000, keyPrefix: "voters" });
+    if (!rateLimit.success) {
+      return rateLimitExceededResponse(rateLimit);
+    }
+
     const electionId = params.id;
     const body = await req.json();
 
@@ -73,13 +114,33 @@ export async function POST(
       });
     }
 
+    // 1. Fetch election
+    const { data: election, error: elErr } = await admin
+      .from("elections")
+      .select("org_id")
+      .eq("id", electionId)
+      .single();
+
+    if (elErr || !election) {
+      return NextResponse.json({ error: "Election not found" }, { status: 404 });
+    }
+
+    // 2. Strict authorization: Caller must be org_admin of this election's organization
+    const { user, error: adminErr } = await verifyOrgAdmin(req, election.org_id);
+    if (!user || adminErr) {
+      return NextResponse.json(
+        { error: adminErr || "Forbidden: Only organisation administrators can add or import voters." },
+        { status: 403 }
+      );
+    }
+
     // Bulk import
     if (body.voters && Array.isArray(body.voters)) {
       let added = 0;
       let skipped = 0;
 
       for (const item of body.voters) {
-        if (!item.email || !item.email.includes("@")) {
+        if (!item.email || !isValidEmail(item.email)) {
           skipped++;
           continue;
         }
@@ -97,13 +158,13 @@ export async function POST(
         }
       }
 
-      return NextResponse.json({ success: true, added, skipped });
+      return NextResponse.json({ success: true, added, skipped }, { headers: rateLimit.headers });
     }
 
     // Single voter
     const cleanEmail = (body.email || "").toLowerCase().trim();
-    if (!cleanEmail || !cleanEmail.includes("@")) {
-      return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
+    if (!isValidEmail(cleanEmail)) {
+      return NextResponse.json({ error: "A valid, well-formed email address is required (e.g. name@domain.com)." }, { status: 400 });
     }
 
     const { data: newVoter, error: insErr } = await admin

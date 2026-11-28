@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getAuthenticatedUser } from "@/lib/auth/server-auth";
+import { checkRateLimit, rateLimitExceededResponse } from "@/lib/security/rate-limit";
 
 function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
@@ -10,16 +13,44 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 0. Rate limiting protection against automated vote-stuffing
+    const rateLimit = checkRateLimit(req, { limit: 10, windowMs: 60000, keyPrefix: "vote" });
+    if (!rateLimit.success) {
+      return rateLimitExceededResponse(rateLimit);
+    }
+
     const electionId = params.id;
-    const { voterEmail, choices } = await req.json();
+    const body = await req.json();
+    const { voterEmail, choices } = body;
 
     const admin = supabaseAdmin();
+    // Fallback for local mock demo elections
     if (!admin || !isValidUUID(electionId)) {
-      const receipt_code = `VOTE-${electionId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const randomCode = crypto.randomBytes(8).toString("hex").toUpperCase();
+      const receipt_code = `VOTE-${electionId.slice(-4).toUpperCase()}-${randomCode}`;
       return NextResponse.json({ success: true, receipt_code });
     }
 
-    // 1. Validate election exists and is active
+    // 1. Strict Server-Side Authentication & Identity Binding
+    const { user, error: authError } = await getAuthenticatedUser(req);
+    if (!user || !user.email) {
+      return NextResponse.json(
+        { error: "Authentication required: Please sign in to cast your ballot." },
+        { status: 401 }
+      );
+    }
+
+    const authenticatedEmail = user.email.toLowerCase().trim();
+
+    // Prevent identity spoofing: Caller cannot submit under a different email than their authenticated identity
+    if (voterEmail && voterEmail.toLowerCase().trim() !== authenticatedEmail) {
+      return NextResponse.json(
+        { error: "Forbidden: You cannot cast a ballot on behalf of another user." },
+        { status: 403 }
+      );
+    }
+
+    // 2. Validate election exists and is active
     const { data: election, error: elErr } = await admin
       .from("elections")
       .select("*")
@@ -53,13 +84,12 @@ export async function POST(
       );
     }
 
-    // 2. Validate voter eligibility
-    const normalised = (voterEmail || "").toLowerCase().trim();
+    // 3. Validate voter eligibility using verified identity
     const { data: voter, error: vErr } = await admin
       .from("eligible_voters")
       .select("*")
       .eq("election_id", electionId)
-      .eq("email", normalised)
+      .eq("email", authenticatedEmail)
       .maybeSingle();
 
     if (vErr || !voter) {
@@ -69,7 +99,12 @@ export async function POST(
       );
     }
 
-    // 3. Check if voter already cast ballot
+    // Link voter account if not already linked
+    if (!voter.user_id && user.id) {
+      await admin.from("eligible_voters").update({ user_id: user.id }).eq("id", voter.id);
+    }
+
+    // 4. Pre-check if voter already cast ballot (fast path)
     const { data: part } = await admin
       .from("participation")
       .select("voter_id")
@@ -84,21 +119,21 @@ export async function POST(
       );
     }
 
-    // 4. Validate choices length matches positions
+    // 5. Validate choices length matches positions
     const { data: positions } = await admin
       .from("positions")
       .select("id")
       .eq("election_id", electionId);
 
     const posCount = positions?.length || 0;
-    if (choices.length !== posCount) {
+    if (!Array.isArray(choices) || choices.length !== posCount) {
       return NextResponse.json(
         { error: "You must select exactly one candidate for every position on the ballot" },
         { status: 400 }
       );
     }
 
-    // 5. Record participation
+    // 6. Record participation atomically (Race-Condition Protected by primary key constraint)
     const { error: partErr } = await admin.from("participation").insert({
       election_id: electionId,
       voter_id: voter.id,
@@ -106,10 +141,22 @@ export async function POST(
     });
 
     if (partErr) {
+      // Catch unique violation (PostgreSQL code 23505) or duplicate primary key
+      if (
+        partErr.code === "23505" ||
+        partErr.message?.toLowerCase().includes("duplicate") ||
+        partErr.message?.toLowerCase().includes("unique") ||
+        partErr.message?.toLowerCase().includes("pkey")
+      ) {
+        return NextResponse.json(
+          { error: "Ballot rejected: You have already cast a ballot in this election" },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: partErr.message }, { status: 500 });
     }
 
-    // 6. Record anonymous ballot
+    // 7. Record anonymous ballot
     const { data: ballot, error: bErr } = await admin
       .from("ballots")
       .insert({ election_id: electionId })
@@ -117,10 +164,12 @@ export async function POST(
       .single();
 
     if (bErr || !ballot) {
+      // Rollback participation if ballot creation fails so the voter isn't locked out without a counted vote
+      await admin.from("participation").delete().eq("election_id", electionId).eq("voter_id", voter.id);
       return NextResponse.json({ error: bErr?.message || "Failed to record ballot" }, { status: 500 });
     }
 
-    // 7. Record ballot selections
+    // 8. Record ballot selections
     const selections = choices.map((c: { position_id: string; candidate_id: string }) => ({
       ballot_id: ballot.id,
       position_id: c.position_id,
@@ -129,11 +178,17 @@ export async function POST(
 
     const { error: selErr } = await admin.from("ballot_selections").insert(selections);
     if (selErr) {
-      console.warn("Ballot selection record note:", selErr.message);
+      console.error("Ballot selection record error:", selErr.message);
+      // Rollback ballot and participation
+      await admin.from("ballots").delete().eq("id", ballot.id);
+      await admin.from("participation").delete().eq("election_id", electionId).eq("voter_id", voter.id);
+      return NextResponse.json({ error: "Failed to record ballot selections. Please try again." }, { status: 500 });
     }
 
-    const receipt_code = `VOTE-${electionId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    return NextResponse.json({ success: true, receipt_code });
+    // 9. Cryptographically secure 16-hex receipt code (64-bit entropy)
+    const randomHex = crypto.randomBytes(8).toString("hex").toUpperCase();
+    const receipt_code = `VOTE-${electionId.slice(-4).toUpperCase()}-${randomHex}`;
+    return NextResponse.json({ success: true, receipt_code }, { headers: rateLimit.headers });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal Server Error";
     return NextResponse.json({ error: message }, { status: 500 });

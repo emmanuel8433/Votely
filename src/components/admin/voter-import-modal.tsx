@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Alert } from "@/components/ui/notification";
+import { isValidEmail } from "@/lib/security/validation";
 import { Upload, Download, FileSpreadsheet } from "lucide-react";
 
 interface VoterImportModalProps {
@@ -43,9 +44,10 @@ export function VoterImportModal({ isOpen, onClose, onImport }: VoterImportModal
       const line = lines[i].trim();
       if (!line) continue;
       const parts = line.split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
-      if (parts[0] && parts[0].includes("@")) {
+      const candidateEmail = parts[0]?.toLowerCase().trim();
+      if (candidateEmail && isValidEmail(candidateEmail)) {
         voters.push({
-          email: parts[0],
+          email: candidateEmail,
           full_name: parts[1] || undefined,
         });
       }

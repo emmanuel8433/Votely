@@ -1,15 +1,60 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navigation/navbar";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ShieldCheck, PlusCircle, Users, ArrowRight } from "lucide-react";
+import { CheckCircle2, ShieldCheck, PlusCircle, Users, ArrowRight, Loader2 } from "lucide-react";
+import { store } from "@/lib/store";
+import { supabaseClient } from "@/lib/supabase/client";
 
 function OnboardingContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const orgName = searchParams.get("org") || "Your Organisation";
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    async function checkAuth() {
+      // 1. Verify Supabase session if configured
+      const supabase = supabaseClient();
+      if (supabase) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.user) {
+          router.replace("/login?role=org_admin&redirect=/onboarding");
+          return;
+        }
+        if (session.user.user_metadata?.role !== "org_admin") {
+          router.replace("/vote");
+          return;
+        }
+        setIsAuthorized(true);
+        return;
+      }
+
+      // 2. Fallback to client-side store
+      const user = store.getCurrentUser();
+      if (!user || user.role !== "org_admin") {
+        router.replace("/login?role=org_admin&redirect=/onboarding");
+        return;
+      }
+      setIsAuthorized(true);
+    }
+
+    checkAuth();
+  }, [router]);
+
+  if (isAuthorized === null) {
+    return (
+      <div className="w-full max-w-2xl bg-white rounded-3xl p-10 shadow-xl border border-navy/10 text-center">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-navy/40 mb-3" />
+        <p className="text-sm font-medium text-navy/70">Verifying administrator workspace access...</p>
+      </div>
+    );
+  }
 
   const steps = [
     {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { verifyOrgAdmin } from "@/lib/auth/server-auth";
 
 function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
@@ -33,6 +34,23 @@ export async function GET(
     if (end && !isNaN(end.getTime()) && (currentStatus === "active" || currentStatus === "scheduled") && now >= end) {
       currentStatus = "completed";
       await admin.from("elections").update({ status: "completed" }).eq("id", electionId);
+    }
+
+    // Results Visibility Gate:
+    // If results are not yet published, only an authenticated org_admin of this election may view tallies
+    const isPubliclyPublished = Boolean(election.results_published);
+    if (!isPubliclyPublished) {
+      const { user, error: adminAuthErr } = await verifyOrgAdmin(req, election.org_id);
+      if (!user || adminAuthErr) {
+        return NextResponse.json(
+          {
+            error: "Election results are confidential and have not been published by the administrator yet.",
+            results_published: false,
+            status: currentStatus,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Get positions & candidates

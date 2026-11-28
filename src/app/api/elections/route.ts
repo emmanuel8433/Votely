@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getAuthenticatedUser, verifyOrgAdmin } from "@/lib/auth/server-auth";
 
 function isValidUUID(val: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
@@ -41,9 +42,36 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, elections: [] });
     }
 
+    const { user } = await getAuthenticatedUser(req);
+
     // Voter query: Find elections this voter was enrolled in
     if (voterEmail) {
+      if (!user || !user.email) {
+        return NextResponse.json(
+          { error: "Authentication required: Please sign in to view enrolled elections." },
+          { status: 401 }
+        );
+      }
+
       const normalised = voterEmail.toLowerCase().trim();
+      const callerEmail = user.email.toLowerCase().trim();
+
+      // Enforce caller authorization: Can only query for oneself unless an admin
+      if (callerEmail !== normalised) {
+        // Check if caller is an org admin
+        const { data: adminMem } = await admin
+          .from("memberships")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "org_admin")
+          .limit(1)
+          .maybeSingle();
+
+        if (!adminMem) {
+          return NextResponse.json({ error: "Forbidden: You may only query your own enrolled elections." }, { status: 403 });
+        }
+      }
+
       const { data: evRows } = await admin
         .from("eligible_voters")
         .select("election_id")
@@ -88,16 +116,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, elections: electionsWithCounts });
     }
 
-    // Admin query: Strictly require valid orgId or userId with org_admin membership
+    // Admin query: Require valid authenticated admin user
     let query = admin.from("elections").select("*").order("starts_at", { ascending: false });
+    const effectiveUserId = user?.id;
 
-    if (orgId && isValidUUID(orgId)) {
-      query = query.eq("org_id", orgId);
-    } else if (userId && isValidUUID(userId)) {
+    if (effectiveUserId) {
       const { data: mem } = await admin
         .from("memberships")
         .select("org_id, role")
-        .eq("user_id", userId)
+        .eq("user_id", effectiveUserId)
         .eq("role", "org_admin")
         .limit(1)
         .maybeSingle();
@@ -105,11 +132,9 @@ export async function GET(req: NextRequest) {
       if (mem?.org_id) {
         query = query.eq("org_id", mem.org_id);
       } else {
-        // User is not an admin: return empty list
         return NextResponse.json({ success: true, elections: [] });
       }
     } else {
-      // Neither orgId nor authenticated admin userId provided
       return NextResponse.json({ success: true, elections: [] });
     }
 
@@ -149,7 +174,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { title, description, starts_at, ends_at, status, org_id, userId } = body;
+    const { title, description, starts_at, ends_at, status, org_id } = body;
 
     const admin = supabaseAdmin();
     if (!admin) {
@@ -170,27 +195,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let targetOrgId = org_id;
-
-    if (userId && isValidUUID(userId)) {
-      const { data: mem } = await admin
-        .from("memberships")
-        .select("org_id, role")
-        .eq("user_id", userId)
-        .eq("role", "org_admin")
-        .limit(1)
-        .maybeSingle();
-
-      if (!mem) {
-        return NextResponse.json(
-          { error: "Unauthorized: only verified organisation administrators can create elections." },
-          { status: 403 }
-        );
-      }
-      targetOrgId = mem.org_id;
-    } else if (!targetOrgId || !isValidUUID(targetOrgId)) {
+    // Strictly verify caller is an authenticated org_admin
+    const { user, orgId: verifiedOrgId, error: adminAuthErr } = await verifyOrgAdmin(req, org_id);
+    if (!user || adminAuthErr) {
       return NextResponse.json(
-        { error: "Unauthorized: valid organisation required." },
+        { error: adminAuthErr || "Unauthorized: Only verified organisation administrators can create elections." },
+        { status: 403 }
+      );
+    }
+
+    const targetOrgId = verifiedOrgId || org_id;
+    if (!targetOrgId || !isValidUUID(targetOrgId)) {
+      return NextResponse.json(
+        { error: "Unauthorized: Valid organisation required." },
         { status: 403 }
       );
     }
