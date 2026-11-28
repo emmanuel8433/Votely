@@ -254,9 +254,8 @@ export function GoogleAuthButton({
       {/* Native Google Identity Services Button: Prompts on votelysystem.vercel.app */}
       <div
         ref={googleBtnContainerRef}
-        className={`w-full flex justify-center items-center [&_iframe]:!mx-auto ${
-          isGisReady ? "block" : "hidden"
-        }`}
+        className={`w-full flex justify-center items-center [&_iframe]:!mx-auto ${isGisReady ? "block" : "hidden"
+          }`}
       />
 
       {/* Styled Fallback / Loading Button when GIS is initializing or offline */}
